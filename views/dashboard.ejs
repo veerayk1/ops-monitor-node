@@ -1,0 +1,19 @@
+<%- include('partials/header', { title: 'Dashboard — Ops Monitor', active }) %>
+
+<section class="page">
+  <div class="page-head reveal">
+    <div>
+      <div class="eyebrow" id="dash-count">Dashboard</div>
+      <h1 class="page-title">Operations health</h1>
+      <p class="page-sub">Configured workflows and their most recent verdicts. Click a workflow card to drill into history, screenshots, and per-rule reasoning.</p>
+    </div>
+  </div>
+
+  <div id="workflow-list">
+    <div class="empty-shell reveal">
+      <div class="skeleton" style="height:280px;"></div>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer', { scriptSrc: '/static/js/dashboard.js' }) %>

@@ -1,0 +1,200 @@
+<%- include('partials/header', { title: 'Job Builder — Ops Monitor', active }) %>
+
+<section class="page">
+  <div class="page-head reveal">
+    <div>
+      <div class="eyebrow"><a href="/" class="back-link">← Dashboard</a></div>
+      <h1 class="page-title" id="builder-title">New workflow</h1>
+      <p class="page-sub">Configure connection, the steps the browser performs, the rules that define healthy, and when to run.</p>
+    </div>
+    <div class="page-actions">
+      <a href="/" class="btn btn-ghost">Cancel</a>
+      <button id="run-now-btn" class="btn" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Run now
+      </button>
+    </div>
+  </div>
+
+  <form id="job-form" class="form-shell reveal">
+    <aside class="form-rail">
+      <h4>Setup steps</h4>
+      <ol>
+        <li onclick="document.getElementById('section-basics').scrollIntoView({behavior:'smooth'})">Basics &amp; connection</li>
+        <li onclick="document.getElementById('section-workflow').scrollIntoView({behavior:'smooth'})">Browser steps</li>
+        <li onclick="document.getElementById('section-rules').scrollIntoView({behavior:'smooth'})">Health rules</li>
+        <li onclick="document.getElementById('section-schedule').scrollIntoView({behavior:'smooth'})">Schedule &amp; AI</li>
+      </ol>
+    </aside>
+
+    <div class="form-sections">
+
+      <div class="section" id="section-basics">
+        <div class="section-head">
+          <h2>1. Basics &amp; connection</h2>
+          <p>Where the workflow lives and how to log in. Credentials are encrypted at rest.</p>
+        </div>
+        <div class="field">
+          <label for="f-name">Workflow name</label>
+          <input id="f-name" name="name" type="text" placeholder="e.g. RabbitMQ — blueYonder Queues" required />
+        </div>
+        <div class="field">
+          <label for="f-url">URL</label>
+          <input id="f-url" name="url" type="url" class="mono" placeholder="http://canldsaav01d:15672" required />
+          <span class="hint">Base URL — no trailing slash. Hash path goes in the next section.</span>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-username">Username</label>
+            <input id="f-username" name="username" type="text" autocomplete="off" required />
+          </div>
+          <div class="field">
+            <label for="f-password">Password</label>
+            <input id="f-password" name="password" type="password" autocomplete="new-password" required />
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="section-workflow">
+        <div class="section-head">
+          <h2>2. Browser steps</h2>
+          <p>What the browser does after logging in, before the screenshot.</p>
+        </div>
+        <div class="field">
+          <label for="f-page-path">Page path after login</label>
+          <input id="f-page-path" name="page_path" type="text" class="mono" value="/#/queues" />
+        </div>
+        <div class="field">
+          <label for="f-filter">Filter text (optional)</label>
+          <input id="f-filter" name="filter_text" type="text" class="mono" placeholder="blueyonder" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-columns">Columns to ensure visible</label>
+            <input id="f-columns" name="ensure_columns" type="text" class="mono" placeholder="Consumer count" />
+            <span class="hint">Comma-separated. Each must match a +/- column-picker label.</span>
+          </div>
+          <div class="field">
+            <label for="f-expected-count">Expected row count (optional)</label>
+            <input id="f-expected-count" name="expected_row_count" type="number" min="0" placeholder="6" />
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="section-rules">
+        <div class="section-head">
+          <h2>3. Health rules</h2>
+          <p>Each rule is checked against the data extracted from the screenshot. All must pass for the workflow to be marked OK.</p>
+        </div>
+        <div id="rule-list" class="rule-list"></div>
+        <button type="button" class="rule-add" onclick="addRule()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
+          Add another rule
+        </button>
+      </div>
+
+      <div class="section" id="section-schedule">
+        <div class="section-head">
+          <h2>4. Schedule &amp; AI</h2>
+          <p>When the workflow runs and which AI provider evaluates the screenshot.</p>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-cron">Cron expression</label>
+            <input id="f-cron" name="schedule_cron" type="text" class="mono" value="0 9-18 * * 1-5" />
+            <span class="hint" id="cron-hint">Top of every hour, 9 AM–6 PM, Mon–Fri (10 runs/day).</span>
+          </div>
+          <div class="field">
+            <label>Enabled</label>
+            <label class="toggle" style="margin-top:8px;">
+              <input id="f-enabled" type="checkbox" checked />
+              <span class="switch"></span>
+              <span class="label">Run automatically on schedule</span>
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-ai-provider">AI provider</label>
+          <select id="f-ai-provider" name="ai_provider">
+            <option value="system">System default (with fallback)</option>
+            <option value="anthropic">Anthropic only — Claude</option>
+            <option value="openai">OpenAI only — GPT</option>
+          </select>
+          <span class="hint">"System default" uses the primary configured in Settings, with automatic fallback. Pick a specific provider to lock this workflow to one model.</span>
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <span class="info">Credentials are encrypted at rest. API keys live only in .env.</span>
+        <div class="actions">
+          <button type="button" id="delete-btn" class="btn btn-danger" style="display:none;">Delete</button>
+          <button type="submit" class="btn btn-primary">Save workflow</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</section>
+
+<template id="rule-template">
+  <div class="rule-card" data-rule>
+    <div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Rule description</label>
+        <input data-field="description" type="text" placeholder="e.g. Primary queues must have at least 1 consumer" required />
+      </div>
+      <div class="rule-grid">
+        <div class="field">
+          <label>Applies to</label>
+          <select data-field="target">
+            <option value="primary">Primary (non-DLQ)</option>
+            <option value="dlq">DLQ only</option>
+            <option value="all">All queues</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Metric</label>
+          <select data-field="metric">
+            <option value="consumer_count">Consumer count</option>
+            <option value="ready_messages">Ready messages</option>
+            <option value="unacked_messages">Unacked messages</option>
+            <option value="row_count">Row count (overall)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Operator</label>
+          <select data-field="operator">
+            <option value=">=">≥</option>
+            <option value=">">&gt;</option>
+            <option value="==">=</option>
+            <option value="<=">≤</option>
+            <option value="<">&lt;</option>
+            <option value="!=">≠</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Threshold</label>
+          <input data-field="threshold" type="number" step="any" required />
+        </div>
+        <div></div>
+      </div>
+      <div class="rule-confirm-row">
+        <label class="toggle">
+          <input data-field="wait_and_confirm" type="checkbox" />
+          <span class="switch"></span>
+          <span class="label">Wait &amp; re-check before alerting</span>
+        </label>
+        <div class="field" style="flex-direction:row; align-items:center; gap:8px; margin:0;">
+          <label style="margin:0;">Wait minutes</label>
+          <input data-field="wait_minutes" type="number" min="1" max="60" value="5" style="width:90px;" />
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('[data-rule]').remove()" title="Remove rule" aria-label="Remove rule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+    </button>
+  </div>
+</template>
+
+<script>window.JOB_ID = <%- jobId === null ? 'null' : JSON.stringify(jobId) %>;</script>
+
+<%- include('partials/footer', { scriptSrc: '/static/js/builder.js' }) %>

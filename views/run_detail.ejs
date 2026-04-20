@@ -1,0 +1,50 @@
+<%- include('partials/header', { title: 'Run detail — Ops Monitor', active }) %>
+
+<section class="page">
+  <div class="page-head reveal">
+    <div>
+      <div class="eyebrow"><a href="/">← Dashboard</a></div>
+      <h1 class="page-title" id="run-title">Run #<%= runId %></h1>
+      <p class="page-sub" id="run-summary">Loading…</p>
+    </div>
+    <div id="run-status"></div>
+  </div>
+
+  <div class="run-grid">
+    <div class="reveal">
+      <div class="screenshot-frame">
+        <img id="run-screenshot" alt="Application screenshot captured during workflow run" src="" />
+        <div class="caption">
+          <span id="run-screenshot-label">Initial capture</span>
+          <span id="run-screenshot-ts"></span>
+        </div>
+      </div>
+      <div id="recheck-frame" class="screenshot-frame" style="display:none; margin-top:16px;">
+        <img id="recheck-screenshot" alt="Re-check screenshot" src="" />
+        <div class="caption">
+          <span>Re-check capture (after wait)</span>
+          <span id="recheck-screenshot-ts"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <div class="section">
+        <div class="section-head">
+          <h2 style="font-size:18px;">Verdict</h2>
+        </div>
+        <dl class="detail-list" id="run-meta"></dl>
+
+        <h3 style="margin: 32px 0 12px; font-size: 15px; font-weight:600;">Rule results</h3>
+        <div id="rule-results" class="rule-result-list"></div>
+
+        <h3 style="margin: 32px 0 12px; font-size: 15px; font-weight:600;">Extracted data</h3>
+        <div id="extracted-data"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>window.RUN_ID = <%- JSON.stringify(runId) %>;</script>
+
+<%- include('partials/footer', { scriptSrc: '/static/js/run_detail.js' }) %>

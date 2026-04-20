@@ -1,0 +1,19 @@
+<%- include('partials/header', { title: 'Settings — Ops Monitor', active }) %>
+
+<section class="page">
+  <div class="page-head reveal">
+    <div>
+      <div class="eyebrow">Settings</div>
+      <h1 class="page-title">System configuration</h1>
+      <p class="page-sub">AI providers, scheduler, and browser settings. To change a key or model, edit your <code>.env</code> file and restart the server. Keys are never displayed in this UI for security.</p>
+    </div>
+  </div>
+
+  <div id="settings-body">
+    <div class="empty-shell reveal">
+      <div class="skeleton" style="height:240px;"></div>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer', { scriptSrc: '/static/js/settings.js' }) %>

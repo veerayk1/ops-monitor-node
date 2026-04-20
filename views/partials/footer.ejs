@@ -1,0 +1,38 @@
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    window.showToast = (msg, kind = '') => {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast show ${kind}`;
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => { t.className = `toast ${kind}`; }, 3200);
+    };
+
+    // CSRF-aware fetch wrapper — automatically includes the token on mutating requests
+    window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    window.apiFetch = (url, opts = {}) => {
+      const method = (opts.method || 'GET').toUpperCase();
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        opts.headers = { ...opts.headers, 'X-CSRF-Token': window.csrfToken };
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), opts.timeout || 30000);
+      opts.signal = controller.signal;
+      return fetch(url, opts).then(r => {
+        clearTimeout(timeoutId);
+        return r;
+      }).catch(err => {
+        clearTimeout(timeoutId);
+        throw err;
+      });
+    };
+  </script>
+  <% if (typeof scriptSrc !== 'undefined' && scriptSrc) { %>
+    <script src="<%= scriptSrc %>"></script>
+  <% } %>
+</body>
+</html>
