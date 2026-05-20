@@ -39,21 +39,33 @@
     const steps = [];
     let n = 1;
     const u = new URL(job.url);
-    steps.push({ n: n++, label: 'Open URL', detail: u.host });
-    steps.push({ n: n++, label: 'Login', detail: job.username });
-    if (job.steps?.filter_text) {
-      steps.push({ n: n++, label: 'Filter', detail: `"${job.steps.filter_text}"` });
+
+    if (job.source_type === 'rabbitmq_api') {
+      steps.push({ n: n++, label: 'GET /api/queues', detail: u.host });
+      steps.push({ n: n++, label: 'Basic auth', detail: job.username });
+      if (job.steps?.filter_text) {
+        steps.push({ n: n++, label: 'Filter', detail: `name ⊃ "${job.steps.filter_text}"` });
+      }
+      const expectsRows = job.steps?.expected_row_count;
+      steps.push({ n: n++, label: 'Parse JSON', detail: expectsRows ? `expect ${expectsRows} rows` : 'queue list' });
+      steps.push({ n: n++, label: 'Apply rules', detail: `${job.rules.length} rule${job.rules.length === 1 ? '' : 's'}` });
+    } else {
+      steps.push({ n: n++, label: 'Open URL', detail: u.host });
+      steps.push({ n: n++, label: 'Login', detail: job.username });
+      if (job.steps?.filter_text) {
+        steps.push({ n: n++, label: 'Filter', detail: `"${job.steps.filter_text}"` });
+      }
+      if (job.steps?.ensure_columns?.length) {
+        steps.push({ n: n++, label: 'Show columns', detail: job.steps.ensure_columns.join(', ') });
+      }
+      const expectsRows = job.steps?.expected_row_count;
+      steps.push({ n: n++, label: 'Screenshot', detail: expectsRows ? `expect ${expectsRows} rows` : 'capture page' });
+      const provLabel = job.ai_provider === 'system'
+        ? 'AI extract'
+        : (job.ai_provider === 'anthropic' ? 'Claude extract' : 'GPT extract');
+      steps.push({ n: n++, label: provLabel, detail: 'queue data' });
+      steps.push({ n: n++, label: 'Apply rules', detail: `${job.rules.length} rule${job.rules.length === 1 ? '' : 's'}` });
     }
-    if (job.steps?.ensure_columns?.length) {
-      steps.push({ n: n++, label: 'Show columns', detail: job.steps.ensure_columns.join(', ') });
-    }
-    const expectsRows = job.steps?.expected_row_count;
-    steps.push({ n: n++, label: 'Screenshot', detail: expectsRows ? `expect ${expectsRows} rows` : 'capture page' });
-    const provLabel = job.ai_provider === 'system'
-      ? 'AI extract'
-      : (job.ai_provider === 'anthropic' ? 'Claude extract' : 'GPT extract');
-    steps.push({ n: n++, label: provLabel, detail: 'queue data' });
-    steps.push({ n: n++, label: 'Apply rules', detail: `${job.rules.length} rule${job.rules.length === 1 ? '' : 's'}` });
 
     const html = steps.map((s, i) => {
       const stepHtml = `
@@ -72,15 +84,33 @@
       </div>`;
   }
 
-  function renderRules(rules) {
+  function renderRules(rules, lastRuleResults) {
+    const resultsById = new Map((lastRuleResults || []).map(r => [r.id, r]));
     return `
       <div class="wf-block">
         <h4>Health rules · ${rules.length}</h4>
         ${rules.map(r => {
           const opSym = ({'>=':'≥','<=':'≤','==':'=','!=':'≠','>':'>','<':'<'})[r.operator] || r.operator;
+          const res = resultsById.get(r.id);
+          let observedHtml = '';
+          if (res) {
+            const o = res.observed || {};
+            let valTxt = '—';
+            if (typeof o.value === 'number') {
+              valTxt = String(o.value);
+            } else if (typeof o.min === 'number' && typeof o.max === 'number') {
+              valTxt = o.min === o.max ? String(o.min) : `${o.min}–${o.max}`;
+            } else if (typeof o.queues === 'number' && o.queues === 0) {
+              valTxt = 'no queues';
+            }
+            const tone = res.passed ? 'ok' : 'alert';
+            const icon = res.passed ? '✓' : '!';
+            observedHtml = `<span class="rule-observed ${tone}" title="${esc(res.message || '')}">observed ${esc(valTxt)} ${icon}</span>`;
+          }
           return `<div class="rule-row">
             <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/></svg></span>
             <span>${esc(r.description)}</span>
+            ${observedHtml}
             <code>${opSym} ${r.threshold}</code>
           </div>`;
         }).join('')}
@@ -121,6 +151,50 @@
     return 'Custom schedule';
   }
 
+  /** Compact strip showing the last ~20 runs as colored dots so a glance proves
+   *  there have been recent successful checks (not just a stale "healthy" badge). */
+  function renderRunStrip(recentRuns) {
+    if (!recentRuns || !recentRuns.length) {
+      return `
+        <div class="run-strip">
+          <div class="run-strip-label">Recent runs</div>
+          <div class="run-strip-dots"><span class="run-strip-empty">No runs yet</span></div>
+        </div>`;
+    }
+    // Newest first from the API — render oldest-left → newest-right for readability
+    const ordered = recentRuns.slice().reverse();
+    const dots = ordered.map(r => {
+      const cls = `run-dot run-dot-${esc(r.status)}`;
+      const label = `${STATUS_LABELS[r.status] || r.status} · ${fmtAbs(r.started_at)}${r.summary ? ' — ' + r.summary : ''}`;
+      return `<a href="/runs/${r.id}" class="${cls}" title="${esc(label)}" aria-label="${esc(label)}"></a>`;
+    }).join('');
+    const passed = recentRuns.filter(r => r.status === 'ok').length;
+    return `
+      <div class="run-strip">
+        <div class="run-strip-label">Recent runs <span class="run-strip-count">${passed}/${recentRuns.length} healthy</span></div>
+        <div class="run-strip-dots">${dots}</div>
+      </div>`;
+  }
+
+  /** A run is "stale" when the scheduler should have produced a new one by now
+   *  but didn't — proves the difference between "healthy=last run passed" and
+   *  "healthy=scheduler stopped firing 3 days ago". */
+  function staleWarning(job, nextRunAt) {
+    if (!job.last_run_at || !nextRunAt) return '';
+    const next = _toDate(nextRunAt);
+    if (!next) return '';
+    const overdueMs = Date.now() - next.getTime();
+    const graceMs = 5 * 60 * 1000; // 5 min grace for cron jitter
+    if (overdueMs <= graceMs) return '';
+    const overdueText = overdueMs > 3600_000
+      ? `${Math.floor(overdueMs / 3600_000)}h overdue`
+      : `${Math.floor(overdueMs / 60_000)}m overdue`;
+    return `<div class="wf-info" style="color:var(--warn);background:var(--warn-dim);border-color:var(--warn-ring);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      No run since scheduled time (${overdueText}). Scheduler may have stopped — investigate before trusting the "healthy" badge.
+    </div>`;
+  }
+
   function renderEmptyHistory(job) {
     if (job.last_run_at) {
       const isOk = job.last_status === 'ok';
@@ -139,7 +213,7 @@
     </div>`;
   }
 
-  function renderCard(job, nextRunAt) {
+  function renderCard(job, nextRunAt, recentRuns) {
     const status = job.last_status || 'never';
     const statusLabel = STATUS_LABELS[status] || status;
     const card = document.createElement('div');
@@ -160,11 +234,14 @@
 
       ${renderSteps(job)}
 
+      ${renderRunStrip(recentRuns)}
+
       <div class="wf-body">
-        ${renderRules(job.rules)}
+        ${renderRules(job.rules, job.last_rule_results)}
         ${renderMeta(job, nextRunAt)}
       </div>
 
+      ${staleWarning(job, nextRunAt)}
       ${renderEmptyHistory(job)}
 
       <div class="wf-foot">
@@ -262,15 +339,15 @@
 
       const results = await Promise.all(jobs.map(async (j) => {
         try {
-          const r = await apiFetch(`/api/runs/job/${j.id}?limit=1`);
-          if (!r.ok) return { job: j, nextRunAt: null };
+          const r = await apiFetch(`/api/runs/job/${j.id}?limit=20`);
+          if (!r.ok) return { job: j, nextRunAt: null, recentRuns: [] };
           const data = await r.json();
-          return { job: j, nextRunAt: data.next_run_at };
+          return { job: j, nextRunAt: data.next_run_at, recentRuns: data.runs || [] };
         } catch {
-          return { job: j, nextRunAt: null };
+          return { job: j, nextRunAt: null, recentRuns: [] };
         }
       }));
-      results.forEach(({ job, nextRunAt }) => list.appendChild(renderCard(job, nextRunAt)));
+      results.forEach(({ job, nextRunAt, recentRuns }) => list.appendChild(renderCard(job, nextRunAt, recentRuns)));
     } catch (err) {
       list.textContent = '';
       const errDiv = document.createElement('div');

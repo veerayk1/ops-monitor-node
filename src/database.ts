@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { DB_PATH } from './config.js';
-import type { Job, Run, Rule, RuleResult, Steps, Extracted, RunStatus, AiProviderOverride } from './types.js';
+import type { Job, Run, Rule, RuleResult, Steps, Extracted, RunStatus, AiProviderOverride, SourceType } from './types.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS jobs (
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   schedule_cron   TEXT NOT NULL DEFAULT '0 9-18 * * 1-5',
   enabled         INTEGER NOT NULL DEFAULT 1,
   ai_provider     TEXT NOT NULL DEFAULT 'system',
+  source_type     TEXT NOT NULL DEFAULT 'browser',
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL
 );
@@ -54,6 +55,7 @@ function safeAddColumn(table: string, col: string, def: string): void {
   }
 }
 safeAddColumn('jobs', 'ai_provider',     "TEXT NOT NULL DEFAULT 'system'");
+safeAddColumn('jobs', 'source_type',     "TEXT NOT NULL DEFAULT 'browser'");
 safeAddColumn('runs', 'ai_provider_used', 'TEXT');
 safeAddColumn('runs', 'ai_model_used',    'TEXT');
 safeAddColumn('runs', 'ai_cost_cents',    'REAL');
@@ -70,6 +72,7 @@ interface JobRow {
   schedule_cron: string;
   enabled: number;
   ai_provider: string;
+  source_type: string;
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +115,7 @@ const rowToJob = (r: JobRow): Job => ({
   schedule_cron: r.schedule_cron,
   enabled: !!r.enabled,
   ai_provider: (r.ai_provider as AiProviderOverride) ?? 'system',
+  source_type: ((r.source_type as SourceType) ?? 'browser'),
   created_at: r.created_at,
   updated_at: r.updated_at,
 });
@@ -146,16 +150,17 @@ export function insertJob(args: {
   schedule_cron: string;
   enabled: boolean;
   ai_provider: AiProviderOverride;
+  source_type: SourceType;
 }): number {
   const now = new Date().toISOString();
   const stmt = db.prepare(
-    `INSERT INTO jobs (name, url, username_enc, password_enc, steps_json, rules_json, schedule_cron, enabled, ai_provider, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO jobs (name, url, username_enc, password_enc, steps_json, rules_json, schedule_cron, enabled, ai_provider, source_type, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const info = stmt.run(
     args.name, args.url, args.username_enc, args.password_enc,
     JSON.stringify(args.steps), JSON.stringify(args.rules),
-    args.schedule_cron, args.enabled ? 1 : 0, args.ai_provider, now, now,
+    args.schedule_cron, args.enabled ? 1 : 0, args.ai_provider, args.source_type, now, now,
   );
   return info.lastInsertRowid as number;
 }
@@ -170,15 +175,16 @@ export function updateJob(jobId: number, args: {
   schedule_cron: string;
   enabled: boolean;
   ai_provider: AiProviderOverride;
+  source_type: SourceType;
 }): void {
   const now = new Date().toISOString();
   db.prepare(
     `UPDATE jobs SET name=?, url=?, username_enc=?, password_enc=?, steps_json=?, rules_json=?,
-     schedule_cron=?, enabled=?, ai_provider=?, updated_at=? WHERE id=?`,
+     schedule_cron=?, enabled=?, ai_provider=?, source_type=?, updated_at=? WHERE id=?`,
   ).run(
     args.name, args.url, args.username_enc, args.password_enc,
     JSON.stringify(args.steps), JSON.stringify(args.rules),
-    args.schedule_cron, args.enabled ? 1 : 0, args.ai_provider, now, jobId,
+    args.schedule_cron, args.enabled ? 1 : 0, args.ai_provider, args.source_type, now, jobId,
   );
 }
 

@@ -30,13 +30,16 @@ function jobOut(jobId: number, includeCredentials = false) {
     schedule_cron: job.schedule_cron,
     enabled: job.enabled,
     ai_provider: job.ai_provider,
+    source_type: job.source_type,
     created_at: job.created_at,
     updated_at: job.updated_at,
     last_status: last?.status ?? null,
     last_run_at: last?.started_at ?? null,
+    last_finished_at: last?.finished_at ?? null,
     last_summary: last?.summary ?? null,
     last_provider: last?.ai_provider_used ?? null,
     last_cost_cents: last?.ai_cost_cents ?? null,
+    last_rule_results: last?.rule_results ?? null,
   };
 }
 
@@ -70,6 +73,7 @@ jobsRouter.post('/', (req, res) => {
     schedule_cron: p.schedule_cron,
     enabled: p.enabled,
     ai_provider: p.ai_provider,
+    source_type: p.source_type,
   });
   const job = getJob(id);
   if (job) scheduleJob(job);
@@ -96,6 +100,7 @@ jobsRouter.put('/:id', (req, res) => {
     schedule_cron: p.schedule_cron,
     enabled: p.enabled,
     ai_provider: p.ai_provider,
+    source_type: p.source_type,
   });
   const job = getJob(id);
   if (job) scheduleJob(job);

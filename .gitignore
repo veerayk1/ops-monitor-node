@@ -12,3 +12,8 @@ public/screenshots/**/
 .DS_Store
 .vscode/
 .idea/
+
+# Local sandbox helpers — not for production
+node-runtime/
+.claude/
+run-preview.sh

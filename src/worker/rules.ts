@@ -44,17 +44,20 @@ export function evaluateRules(extracted: Extracted, rules: Rule[]): RuleResult[]
         passed,
         offending: passed ? [] : [{ name: '<row count>', value }],
         message: `row count = ${value} (rule: ${rule.operator} ${threshold})`,
+        observed: { value },
       };
     }
 
     const targeted = filterQueues(queues, rule.target);
     const offending: { name: string; value: number | null }[] = [];
+    const observedNumbers: number[] = [];
     for (const q of targeted) {
       const value = q[rule.metric];
       if (value === null || value === undefined) {
         offending.push({ name: q.name ?? '?', value: null });
         continue;
       }
+      observedNumbers.push(value);
       if (!op(value, threshold)) {
         offending.push({ name: q.name ?? '?', value });
       }
@@ -66,12 +69,19 @@ export function evaluateRules(extracted: Extracted, rules: Rule[]): RuleResult[]
       : `${rule.target}: violation on ${rule.metric} ${rule.operator} ${threshold} (` +
         offending.map((o) => `${o.name}=${o.value}`).join(', ') + ')';
 
+    const observed: NonNullable<RuleResult['observed']> = { queues: targeted.length };
+    if (observedNumbers.length) {
+      observed.min = Math.min(...observedNumbers);
+      observed.max = Math.max(...observedNumbers);
+    }
+
     return {
       id: rule.id,
       description: rule.description,
       passed,
       offending,
       message,
+      observed,
     };
   });
 }

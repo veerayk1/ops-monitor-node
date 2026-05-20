@@ -824,6 +824,26 @@ textarea { min-height: 80px; resize: vertical; }
 .wf-info { margin: 0 26px 0; padding: 14px 16px; background: var(--bg-2); border: 1px dashed var(--border); border-radius: 10px; font-size: 12px; color: var(--fg-faint); display: flex; align-items: center; gap: 10px; }
 .wf-info svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+/* Recent-runs strip — visual proof the schedule is firing and producing healthy results */
+.run-strip { padding: 0 26px 14px; }
+.run-strip-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--fg-faint); margin-bottom: 8px; display: flex; gap: 10px; align-items: baseline; }
+.run-strip-count { color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-size: 11px; }
+.run-strip-dots { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.run-strip-empty { font-size: 11px; color: var(--fg-faint); font-family: var(--font-mono); }
+.run-dot { width: 14px; height: 14px; border-radius: 3px; background: var(--bg-3); border: 1px solid var(--border-subtle); transition: transform 120ms var(--ease); display: inline-block; }
+.run-dot:hover { transform: scale(1.25); }
+.run-dot-ok            { background: var(--ok);    border-color: var(--ok-ring); }
+.run-dot-alert         { background: var(--alert); border-color: var(--alert-ring); }
+.run-dot-system_error  { background: var(--warn);  border-color: var(--warn-ring); }
+.run-dot-pending_recheck { background: var(--warn-dim); border-color: var(--warn-ring); }
+.run-dot-running       { background: var(--bg-3);  border-color: var(--border); animation: pulse 1.6s ease-in-out infinite; }
+
+/* Per-rule observed-vs-threshold pill, right-aligned next to the threshold code */
+.rule-observed { font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: auto; white-space: nowrap; }
+.rule-observed.ok    { background: var(--ok-dim);    color: var(--ok);    border: 1px solid var(--ok-ring); }
+.rule-observed.alert { background: var(--alert-dim); color: var(--alert); border: 1px solid var(--alert-ring); }
+.rule-row .rule-observed + code { margin-left: 6px; }
+
 .wf-foot { padding: 16px 26px; background: var(--bg-2); border-top: 1px solid var(--border-subtle); margin-top: 16px; display: flex; gap: 8px; align-items: center; }
 
 .wf-history { padding: 12px 26px 16px; background: var(--bg-2); border-top: 1px solid var(--border-subtle); }

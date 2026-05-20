@@ -17,8 +17,13 @@ export const StepsSchema = z.object({
   ensure_columns: z.array(z.string()).default([]),
   expected_row_count: z.number().int().nullable().optional(),
   page_path: z.string().default('/#/queues'),
+  /** RabbitMQ vhost (only used when source_type='rabbitmq_api'). Defaults to '/'. */
+  vhost: z.string().optional(),
 });
 export type Steps = z.infer<typeof StepsSchema>;
+
+export const SourceTypeSchema = z.enum(['browser', 'rabbitmq_api']).default('browser');
+export type SourceType = z.infer<typeof SourceTypeSchema>;
 
 /** Per-workflow AI provider override.
  *  'system' = use the configured system primary + fallback chain.
@@ -36,6 +41,7 @@ export const JobInputSchema = z.object({
   schedule_cron: z.string().default('0 9-18 * * 1-5'),
   enabled: z.boolean().default(true),
   ai_provider: AiProviderOverrideSchema,
+  source_type: SourceTypeSchema,
 });
 export type JobInput = z.infer<typeof JobInputSchema>;
 
@@ -50,6 +56,7 @@ export interface Job {
   schedule_cron: string;
   enabled: boolean;
   ai_provider: AiProviderOverride;
+  source_type: SourceType;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +84,18 @@ export interface RuleResult {
   passed: boolean;
   offending: { name: string; value: number | null }[];
   message: string;
+  /** Observed values for this rule on the run — present even when passed,
+   *  so the UI can show "actual vs threshold" without re-deriving from extracted data. */
+  observed?: {
+    /** Number of queues the rule was evaluated against (row_count rule omits). */
+    queues?: number;
+    /** Minimum non-null value across targeted queues (or the row_count itself). */
+    min?: number;
+    /** Maximum non-null value across targeted queues. */
+    max?: number;
+    /** Single value for row_count-style rules. */
+    value?: number;
+  };
 }
 
 export type RunStatus = 'running' | 'ok' | 'alert' | 'system_error' | 'pending_recheck';

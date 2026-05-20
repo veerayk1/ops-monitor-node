@@ -6,8 +6,9 @@ import { getJob, insertRun, updateRun } from '../database.js';
 import { notify } from '../notifications.js';
 import { runWorkflow } from './browser.js';
 import { evaluateScreenshot, type EvaluationOutcome } from './evaluator.js';
+import { fetchRabbitMqQueues } from './rabbitmq.js';
 import { evaluateRules, overallStatus, rulesNeedingRecheck } from './rules.js';
-import type { Extracted, RuleResult } from '../types.js';
+import type { Extracted, Job, RuleResult } from '../types.js';
 
 function tsFilename(prefix: string): string {
   const ts = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
@@ -35,117 +36,134 @@ function buildSummary(status: 'ok' | 'alert', results: RuleResult[], extracted: 
 
 const sleep = (ms: number): Promise<void> => new Promise((res) => setTimeout(res, ms));
 
+interface PassResult {
+  extracted: Extracted;
+  /** Absolute path. Only set when source_type='browser'. */
+  screenshotPath?: string;
+  /** Only set when source_type='browser'. */
+  outcome?: EvaluationOutcome;
+}
+
+async function runOnePass(job: Job, username: string, password: string, screenshotDir: string, prefix: string): Promise<PassResult> {
+  const { steps } = job;
+
+  if (job.source_type === 'rabbitmq_api') {
+    const extracted = await fetchRabbitMqQueues({
+      url: job.url,
+      username,
+      password,
+      vhost: steps.vhost,
+      filterText: steps.filter_text ?? null,
+    });
+    return { extracted };
+  }
+
+  const screenshotPath = join(screenshotDir, tsFilename(prefix));
+  await runWorkflow({
+    url: job.url,
+    username,
+    password,
+    filterText: steps.filter_text ?? null,
+    ensureCols: steps.ensure_columns ?? [],
+    pagePath: steps.page_path ?? '/#/queues',
+    screenshotPath,
+  });
+  const outcome = await evaluateScreenshot(screenshotPath, job.ai_provider);
+  return { extracted: outcome.extracted, screenshotPath, outcome };
+}
+
 export async function runJob(jobId: number): Promise<number> {
   const job = getJob(jobId);
   if (!job) throw new Error(`Job ${jobId} not found`);
 
   const runId = insertRun(jobId, 'running');
-  console.log(`Run ${runId} started for job ${jobId} (${job.name})`);
+  console.log(`Run ${runId} started for job ${jobId} (${job.name}) source=${job.source_type}`);
 
-  // Aggregate AI cost across both pass-1 and pass-2 calls (if a recheck happens)
   let totalCostCents = 0;
   let lastOutcome: EvaluationOutcome | null = null;
 
   try {
     const username = decrypt(job.username_enc);
     const password = decrypt(job.password_enc);
-    const { steps, rules } = job;
+    const { rules } = job;
+    const dir = jobScreenshotDir(jobId);
 
     // ── First pass ────────────────────────────────────────
-    const dir = jobScreenshotDir(jobId);
-    const screenshotPath = join(dir, tsFilename('run'));
+    let pass = await runOnePass(job, username, password, dir, 'run');
+    if (pass.outcome) {
+      lastOutcome = pass.outcome;
+      totalCostCents += pass.outcome.estimatedCostCents;
+    }
 
-    await runWorkflow({
-      url: job.url,
-      username,
-      password,
-      filterText: steps.filter_text ?? null,
-      ensureCols: steps.ensure_columns ?? [],
-      pagePath: steps.page_path ?? '/#/queues',
-      screenshotPath,
-    });
-
-    let outcome = await evaluateScreenshot(screenshotPath, job.ai_provider);
-    lastOutcome = outcome;
-    totalCostCents += outcome.estimatedCostCents;
-    let extracted = outcome.extracted;
-
-    if (extracted.page_loaded_correctly === false) {
+    if (pass.extracted.page_loaded_correctly === false) {
       updateRun(runId, {
         status: 'system_error',
         finished_at: new Date().toISOString(),
-        screenshot_path: relativeFromPublic(screenshotPath),
-        extracted,
-        summary: 'Page did not load the expected queues table.',
-        error_message: 'Vision extractor reported page_loaded_correctly=false',
-        ai_provider_used: outcome.providerUsed,
-        ai_model_used: outcome.modelUsed,
-        ai_cost_cents: totalCostCents,
-        ai_fallback_notes: outcome.fallbackFromErrors.length
-          ? JSON.stringify(outcome.fallbackFromErrors) : undefined,
+        screenshot_path: pass.screenshotPath ? relativeFromPublic(pass.screenshotPath) : undefined,
+        extracted: pass.extracted,
+        summary: 'Source did not return the expected queues data.',
+        error_message: 'page_loaded_correctly=false',
+        ai_provider_used: pass.outcome?.providerUsed,
+        ai_model_used: pass.outcome?.modelUsed,
+        ai_cost_cents: totalCostCents > 0 ? totalCostCents : undefined,
+        ai_fallback_notes: pass.outcome?.fallbackFromErrors.length
+          ? JSON.stringify(pass.outcome.fallbackFromErrors) : undefined,
       });
       notify({
         jobName: job.name,
-        summary: 'Page did not load the expected queues table.',
+        summary: 'Source did not return the expected queues data.',
         severity: 'system_error',
         details: { runId },
       });
       return runId;
     }
 
-    let ruleResults = evaluateRules(extracted, rules);
+    let ruleResults = evaluateRules(pass.extracted, rules);
     let firstStatus = overallStatus(ruleResults);
 
     // ── Wait-and-confirm pass ──────────────────────────────
     const recheckRules = rulesNeedingRecheck(rules, ruleResults);
-    let recheckScreenshotPath: string | null = null;
+    let recheckScreenshotPath: string | undefined;
     if (firstStatus === 'alert' && recheckRules.length > 0) {
       const waitMinutes = Math.max(...recheckRules.map((r) => r.wait_minutes ?? 5));
       updateRun(runId, {
         status: 'pending_recheck',
-        screenshot_path: relativeFromPublic(screenshotPath),
-        extracted,
+        screenshot_path: pass.screenshotPath ? relativeFromPublic(pass.screenshotPath) : undefined,
+        extracted: pass.extracted,
         rule_results: ruleResults,
         summary: `Initial check failed; re-checking in ${waitMinutes} minute(s) before alerting.`,
-        ai_provider_used: outcome.providerUsed,
-        ai_model_used: outcome.modelUsed,
+        ai_provider_used: pass.outcome?.providerUsed,
+        ai_model_used: pass.outcome?.modelUsed,
       });
       console.log(`Run ${runId} entering wait-and-confirm: ${waitMinutes} minutes`);
       await sleep(waitMinutes * 60_000);
 
-      recheckScreenshotPath = join(dir, tsFilename('recheck'));
-      await runWorkflow({
-        url: job.url,
-        username,
-        password,
-        filterText: steps.filter_text ?? null,
-        ensureCols: steps.ensure_columns ?? [],
-        pagePath: steps.page_path ?? '/#/queues',
-        screenshotPath: recheckScreenshotPath,
-      });
-      outcome = await evaluateScreenshot(recheckScreenshotPath, job.ai_provider);
-      lastOutcome = outcome;
-      totalCostCents += outcome.estimatedCostCents;
-      extracted = outcome.extracted;
-      ruleResults = evaluateRules(extracted, rules);
+      const recheck = await runOnePass(job, username, password, dir, 'recheck');
+      if (recheck.outcome) {
+        lastOutcome = recheck.outcome;
+        totalCostCents += recheck.outcome.estimatedCostCents;
+      }
+      recheckScreenshotPath = recheck.screenshotPath;
+      pass = recheck;
+      ruleResults = evaluateRules(pass.extracted, rules);
     }
 
     const finalStatus = overallStatus(ruleResults);
-    const summary = buildSummary(finalStatus, ruleResults, extracted);
+    const summary = buildSummary(finalStatus, ruleResults, pass.extracted);
 
     updateRun(runId, {
       status: finalStatus,
       finished_at: new Date().toISOString(),
-      screenshot_path: relativeFromPublic(screenshotPath),
+      screenshot_path: pass.screenshotPath ? relativeFromPublic(pass.screenshotPath) : undefined,
       recheck_screenshot_path: recheckScreenshotPath ? relativeFromPublic(recheckScreenshotPath) : undefined,
-      extracted,
+      extracted: pass.extracted,
       rule_results: ruleResults,
       summary,
-      ai_provider_used: outcome.providerUsed,
-      ai_model_used: outcome.modelUsed,
-      ai_cost_cents: totalCostCents,
-      ai_fallback_notes: outcome.fallbackFromErrors.length
-        ? JSON.stringify(outcome.fallbackFromErrors) : undefined,
+      ai_provider_used: pass.outcome?.providerUsed ?? (job.source_type === 'rabbitmq_api' ? 'rabbitmq_api' : undefined),
+      ai_model_used: pass.outcome?.modelUsed,
+      ai_cost_cents: totalCostCents > 0 ? totalCostCents : (job.source_type === 'rabbitmq_api' ? 0 : undefined),
+      ai_fallback_notes: pass.outcome?.fallbackFromErrors.length
+        ? JSON.stringify(pass.outcome.fallbackFromErrors) : undefined,
     });
 
     if (finalStatus === 'alert') {

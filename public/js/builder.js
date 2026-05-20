@@ -9,6 +9,9 @@
   const ruleTpl = document.getElementById('rule-template');
   let ruleCounter = 0;
   let listenersAttached = false;
+  // Round-trip the workflow's source_type so editing/saving doesn't revert
+  // a rabbitmq_api workflow back to 'browser' (the schema default).
+  let loadedSourceType = 'browser';
 
   window.addRule = (rule) => {
     ruleCounter += 1;
@@ -58,6 +61,7 @@
     document.getElementById('f-cron').value      = job.schedule_cron;
     document.getElementById('f-enabled').checked = job.enabled;
     document.getElementById('f-ai-provider').value = job.ai_provider || 'system';
+    loadedSourceType = job.source_type || 'browser';
 
     // Safe: only clearing child nodes
     while (ruleList.firstChild) ruleList.removeChild(ruleList.firstChild);
@@ -130,6 +134,7 @@
       schedule_cron: document.getElementById('f-cron').value,
       enabled: document.getElementById('f-enabled').checked,
       ai_provider: document.getElementById('f-ai-provider').value || 'system',
+      source_type: loadedSourceType,
     };
   };
 

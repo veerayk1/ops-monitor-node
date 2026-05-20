@@ -5,12 +5,17 @@ const BLUEYONDER_JOB = {
   name: 'RabbitMQ — blueYonder Queues',
   url: 'http://canldsaav01d:15672',
   username: 'amruthapriyanka.thallam',
-  password: 'n0BCvqzZsBnWI27', // Test credentials per user — rotate before production use
+  // Password is intentionally blank in source. After first run, edit the workflow
+  // via the builder UI (http://localhost:8000/builder/1) and set the password —
+  // it will be encrypted at rest via the AES-256-GCM key in .env.
+  password: '',
+  source_type: 'rabbitmq_api' as const,
   steps: {
     filter_text: 'blueyonder',
     ensure_columns: ['Consumer count'],
     expected_row_count: 6,
     page_path: '/#/queues',
+    vhost: undefined as string | undefined,
   },
   rules: [
     { id: 'r1', description: 'Primary queues must have at least 1 consumer (alert if 0)',
@@ -44,5 +49,6 @@ export function seedIfEmpty(): void {
     schedule_cron: j.schedule_cron,
     enabled: j.enabled,
     ai_provider: j.ai_provider,
+    source_type: j.source_type,
   });
 }
