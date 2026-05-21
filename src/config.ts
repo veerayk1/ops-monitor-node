@@ -50,6 +50,13 @@ export const settings = {
   // Browser
   browserMode: (process.env.BROWSER_MODE ?? 'headed') as 'headed' | 'headless',
   browserChannel: process.env.BROWSER_CHANNEL ?? 'msedge',
+
+  // Email alerts (Resend)
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  notifyEmailFrom: process.env.NOTIFY_EMAIL_FROM ?? 'onboarding@resend.dev',
+  notifyEmailFromName: process.env.NOTIFY_EMAIL_FROM_NAME ?? 'Argus AI',
+  notifyEmailTo: process.env.NOTIFY_EMAIL_TO ?? '',
+  publicBaseUrl: process.env.PUBLIC_BASE_URL ?? '',
 };
 
 export type Settings = typeof settings;
@@ -58,7 +65,13 @@ export type Settings = typeof settings;
 export function validateSettings(): void {
   const warnings: string[] = [];
   if (!settings.anthropicApiKey && !settings.openaiApiKey) {
-    warnings.push('No AI provider keys configured — set ANTHROPIC_API_KEY and/or OPENAI_API_KEY in .env');
+    warnings.push('No AI provider keys configured — Vision mode disabled (RabbitMQ-API mode still works without keys)');
+  }
+  if (settings.resendApiKey && !settings.notifyEmailTo) {
+    warnings.push('RESEND_API_KEY set but NOTIFY_EMAIL_TO is empty — email alerts will be skipped');
+  }
+  if (!settings.resendApiKey) {
+    warnings.push('Email alerts disabled — set RESEND_API_KEY and NOTIFY_EMAIL_TO in .env to enable');
   }
   if (settings.port < 1 || settings.port > 65535 || !Number.isFinite(settings.port)) {
     warnings.push(`Invalid PORT: ${settings.port}, defaulting to 8000`);
@@ -73,6 +86,11 @@ export function validateSettings(): void {
     }
   }
   for (const w of warnings) console.warn(`[config] ${w}`);
+}
+
+/** True if email alerts can actually be sent. */
+export function isEmailConfigured(): boolean {
+  return Boolean(settings.resendApiKey && settings.notifyEmailTo);
 }
 
 /** True if the given provider has a key configured. */

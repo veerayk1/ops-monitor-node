@@ -113,7 +113,7 @@ export async function runJob(jobId: number): Promise<number> {
         jobName: job.name,
         summary: 'Source did not return the expected queues data.',
         severity: 'system_error',
-        details: { runId },
+        details: { runId, error_message: 'page_loaded_correctly=false' },
       });
       return runId;
     }
@@ -187,7 +187,7 @@ export async function runJob(jobId: number): Promise<number> {
       jobName: job?.name ?? `job ${jobId}`,
       summary: `Run failed: ${err.name}: ${err.message}`,
       severity: 'system_error',
-      details: { runId },
+      details: { runId, error_message: `${err.name}: ${err.message}` },
     });
     return runId;
   }

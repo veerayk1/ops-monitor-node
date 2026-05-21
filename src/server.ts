@@ -9,6 +9,8 @@ import { pagesRouter } from './api/pages.js';
 import { settingsRouter } from './api/settings.js';
 import { reloadAll } from './scheduler.js';
 import { seedIfEmpty } from './seed.js';
+import { registerNotifier } from './notifications.js';
+import { emailNotifier } from './notifications/email.js';
 
 const app = express();
 
@@ -74,10 +76,11 @@ app.use('/', pagesRouter);
 
 validateSettings();
 seedIfEmpty();
+registerNotifier(emailNotifier);
 reloadAll();
 
 const server = app.listen(settings.port, settings.host, () => {
-  console.log(`Ops Monitor running at http://${settings.host}:${settings.port}`);
+  console.log(`Argus AI running at http://${settings.host}:${settings.port}`);
   console.log(`Project root: ${PROJECT_ROOT}`);
 });
 

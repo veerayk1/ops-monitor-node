@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { ENV_PATH, isProviderConfigured, settings, type ProviderName } from '../config.js';
+import { ENV_PATH, isEmailConfigured, isProviderConfigured, settings, type ProviderName } from '../config.js';
 import { anthropicProvider } from '../worker/providers/anthropic.js';
 import { openaiProvider } from '../worker/providers/openai.js';
+import { Resend } from 'resend';
 
 export const settingsRouter = Router();
 
@@ -30,6 +31,15 @@ settingsRouter.get('/', (_req, res) => {
     fallback: settings.aiFallback || null,
     scheduler: { timezone: settings.schedulerTz || 'system default' },
     browser: { mode: settings.browserMode, channel: settings.browserChannel },
+    email: {
+      configured: isEmailConfigured(),
+      from: settings.notifyEmailFrom,
+      from_name: settings.notifyEmailFromName,
+      to: settings.notifyEmailTo,
+      key_hint: settings.resendApiKey
+        ? `${settings.resendApiKey.slice(0, 5)}…${settings.resendApiKey.slice(-4)}`
+        : null,
+    },
   });
 });
 
@@ -143,6 +153,42 @@ settingsRouter.put('/', (req, res) => {
  */
 const TINY_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+/**
+ * POST /api/settings/email-test
+ * Sends a test email via Resend to verify the configuration works end-to-end.
+ */
+settingsRouter.post('/email-test', async (_req, res) => {
+  if (!isEmailConfigured()) {
+    return res.status(400).json({ ok: false, error: 'Email not configured — set RESEND_API_KEY and NOTIFY_EMAIL_TO in .env' });
+  }
+  const client = new Resend(settings.resendApiKey);
+  const from = settings.notifyEmailFromName
+    ? `${settings.notifyEmailFromName} <${settings.notifyEmailFrom}>`
+    : settings.notifyEmailFrom;
+  try {
+    const result = await client.emails.send({
+      from,
+      to: settings.notifyEmailTo,
+      subject: '[Argus AI] Test email — configuration is working',
+      html: `<!doctype html><html><body style="font-family:-apple-system,sans-serif;padding:24px;background:#f9fafb;">
+        <div style="max-width:480px;margin:0 auto;background:#fff;padding:24px;border-radius:12px;border:1px solid #e5e7eb;">
+          <h2 style="margin:0 0 12px;color:#10b981;">✓ Argus AI email alerts are configured</h2>
+          <p style="color:#4b5563;font-size:14px;line-height:1.5;margin:0;">
+            This is a test message confirming the Resend integration is working.
+            From now on you'll receive emails whenever a workflow run fails its
+            health rules or hits a system error.
+          </p>
+        </div></body></html>`,
+    });
+    if (result?.error) {
+      return res.status(500).json({ ok: false, error: `Resend rejected: ${result.error.message || result.error.name}` });
+    }
+    res.json({ ok: true, message: `Test email sent to ${settings.notifyEmailTo}` });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: `Send failed: ${(e as Error).message}` });
+  }
+});
 
 settingsRouter.post('/test/:provider', async (req, res) => {
   const provider = req.params.provider as ProviderName;

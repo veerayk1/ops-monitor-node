@@ -238,6 +238,83 @@
       sysSection.appendChild(schedCard);
 
       grid.appendChild(sysSection);
+
+      // ── Email alerts section ─────────────────────────────────
+      const emailSection = document.createElement('div');
+      emailSection.className = 'settings-section';
+
+      const emailH2 = document.createElement('h2');
+      emailH2.textContent = 'Email Alerts';
+      emailSection.appendChild(emailH2);
+
+      const emailSub = document.createElement('p');
+      emailSub.className = 'sub';
+      emailSub.textContent = 'Argus sends an HTML email whenever a run fails its health rules (alert) or hits a system error. Configured via .env using Resend.';
+      emailSection.appendChild(emailSub);
+
+      const emailCard = document.createElement('div');
+      emailCard.className = 'provider-card';
+      const emailTitle = document.createElement('h3');
+      emailTitle.textContent = 'Resend integration';
+      emailCard.appendChild(emailTitle);
+
+      const emailStatus = document.createElement('div');
+      emailStatus.style.cssText = 'margin-bottom:12px;';
+      const emailBadge = document.createElement('span');
+      emailBadge.className = 'badge';
+      emailBadge.dataset.status = s.email && s.email.configured ? 'ok' : 'never';
+      const eDot = document.createElement('span');
+      eDot.className = 'dot';
+      const eLbl = document.createElement('span');
+      eLbl.className = 'badge-label';
+      eLbl.textContent = s.email && s.email.configured ? 'configured' : 'not configured';
+      emailBadge.appendChild(eDot);
+      emailBadge.appendChild(eLbl);
+      emailStatus.appendChild(emailBadge);
+      emailCard.appendChild(emailStatus);
+
+      const summary = document.createElement('div');
+      summary.style.cssText = 'font-size:12px;color:var(--fg-muted);line-height:1.8;';
+
+      function row(label, value) {
+        const r = document.createElement('div');
+        const k = document.createElement('span');
+        k.style.cssText = 'display:inline-block;width:120px;color:var(--fg-faint);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.12em;';
+        k.textContent = label;
+        const v = document.createElement('span');
+        v.className = 'mono';
+        v.style.cssText = 'font-size:12px;';
+        v.textContent = value || '—';
+        r.appendChild(k);
+        r.appendChild(v);
+        return r;
+      }
+      summary.appendChild(row('API key',  (s.email && s.email.key_hint) || 'not set (RESEND_API_KEY in .env)'));
+      summary.appendChild(row('From',     (s.email && s.email.from) || '—'));
+      summary.appendChild(row('From name',(s.email && s.email.from_name) || '—'));
+      summary.appendChild(row('To',       (s.email && s.email.to) || 'not set (NOTIFY_EMAIL_TO in .env)'));
+      emailCard.appendChild(summary);
+
+      const emailActions = document.createElement('div');
+      emailActions.className = 'provider-actions';
+      emailActions.style.marginTop = '12px';
+      const sendTest = document.createElement('button');
+      sendTest.className = 'btn';
+      sendTest.textContent = 'Send test email';
+      sendTest.id = 'email-test-btn';
+      sendTest.disabled = !(s.email && s.email.configured);
+      emailActions.appendChild(sendTest);
+
+      const emailHint = document.createElement('span');
+      emailHint.className = 'hint';
+      emailHint.style.marginTop = '8px';
+      emailHint.textContent = 'To configure: get a free key from https://resend.com, then add RESEND_API_KEY, NOTIFY_EMAIL_TO (and optionally NOTIFY_EMAIL_FROM if you have verified a domain) to your .env, and restart.';
+      emailCard.appendChild(emailActions);
+      emailCard.appendChild(emailHint);
+      emailSection.appendChild(emailCard);
+
+      grid.appendChild(emailSection);
+
       body.appendChild(grid);
 
       // ── Save bar ──────────────────────────────────────────────
@@ -301,6 +378,30 @@
           saveBtn.textContent = 'Save settings';
         }
       });
+
+      // ── Email test handler ────────────────────────────────────
+      const emailTestBtn = document.getElementById('email-test-btn');
+      if (emailTestBtn) {
+        emailTestBtn.addEventListener('click', async () => {
+          emailTestBtn.disabled = true;
+          const orig = emailTestBtn.textContent;
+          emailTestBtn.textContent = 'Sending…';
+          try {
+            const r = await apiFetch('/api/settings/email-test', { method: 'POST' });
+            const data = await r.json();
+            if (data && data.ok) {
+              showToast(data.message || 'Test email sent', 'success');
+            } else {
+              showToast((data && data.error) || 'Test failed', 'error');
+            }
+          } catch (e) {
+            showToast('Test failed: ' + e.message, 'error');
+          } finally {
+            emailTestBtn.disabled = false;
+            emailTestBtn.textContent = orig;
+          }
+        });
+      }
 
       // ── Test connection handlers ──────────────────────────────
       // Auto-saves any entered keys first, then tests the connection

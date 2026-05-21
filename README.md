@@ -1,165 +1,503 @@
-# Ops Monitor
+<div align="center">
 
-Browser-driven, AI-evaluated operations monitoring. Logs into a web UI on a schedule, takes a screenshot, asks an AI (Claude OR GPT) to read it, applies your rules, and shows everything on a dashboard.
+# Argus AI
 
-Built as a POC. Designed to scale to many workflows across many systems.
+**The hundred-eyed watchman for your operations.**
 
----
+*Always watching. Always confirming.*
 
-## What it does
+[![Node](https://img.shields.io/badge/Node-20%2B-43853d?logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL-003b57?logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Resend](https://img.shields.io/badge/Email-Resend-000000)](https://resend.com)
+[![License](https://img.shields.io/badge/License-Proprietary-444)]()
 
-You define a **workflow**: a URL, login credentials, a few browser steps (filter text, columns to ensure visible), and a list of **rules** (e.g. "primary queues must have ≥1 consumer", "DLQ ready messages must not exceed 10").
-
-On the schedule you set, the system:
-
-1. Opens Microsoft Edge via Playwright
-2. Navigates to the URL, logs in
-3. Performs your browser steps
-4. Screenshots the page
-5. Sends the screenshot to your **primary AI provider** (Claude or GPT). If that fails, automatically tries the **fallback** provider.
-6. Applies your rules to the structured data the AI extracted
-7. If a rule fails AND that rule has wait-and-confirm enabled, waits N minutes and re-checks before alerting
-8. Records everything (screenshot, extracted data, rule results, verdict, AI cost) to SQLite
-9. Updates the dashboard
+</div>
 
 ---
 
-## Stack
+## Table of Contents
 
-| Layer | Tech |
-|---|---|
-| Backend | Node.js 20 + Express + TypeScript |
-| Browser | Playwright + Microsoft Edge |
-| AI | Anthropic SDK (Claude) AND OpenAI SDK (GPT) — pluggable, with automatic fallback |
-| Storage | better-sqlite3 + filesystem (screenshots) |
-| Scheduler | node-cron with optional timezone override |
-| Validation | Zod |
-| Frontend | Server-rendered EJS + vanilla JS, Geist font, custom CSS, sidebar navigation |
-| Encryption | Node `crypto` (AES-256-GCM) for stored workflow credentials |
-
-Open-source code. AI providers are paid services; you bring your own keys.
+1. [What is Argus AI?](#what-is-argus-ai)
+2. [The problem we solve](#the-problem-we-solve)
+3. [How it works in plain English](#how-it-works-in-plain-english)
+4. [System architecture (diagram)](#system-architecture)
+5. [Technology stack (diagram)](#technology-stack)
+6. [What happens during one run, step by step](#what-happens-during-one-run-step-by-step)
+7. [The dashboard — your single pane of glass](#the-dashboard--your-single-pane-of-glass)
+8. [Health rules and thresholds](#health-rules-and-thresholds)
+9. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
+10. [Email alerts (Resend)](#email-alerts-resend)
+11. [Quick start](#quick-start)
+12. [Configuration reference (.env)](#configuration-reference-env)
+13. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
+14. [Security model](#security-model)
+15. [Project structure](#project-structure)
+16. [Roadmap](#roadmap)
+17. [Acknowledgments](#acknowledgments)
 
 ---
 
-## Setup
+## What is Argus AI?
 
-### 1. Install
+**Argus AI is a monitoring platform that watches your business-critical message queues and tells you — *with evidence* — whether they are healthy.**
+
+Named after [Argus Panoptes](https://en.wikipedia.org/wiki/Argus_Panoptes), the giant in Greek mythology with a hundred eyes who never slept, Argus AI is designed for one job: **never miss a problem in your operational pipelines, and never let you assume "everything is fine" when it isn't.**
+
+In simple terms:
+
+- Argus connects to your queue system (currently **RabbitMQ**, via its built-in HTTP management interface — the same one you log into in a browser).
+- It reads the live state of your queues on a schedule you set (a *cron schedule* — think "every hour during business days").
+- It checks that state against the rules you defined (e.g. *"every primary queue must have at least one consumer worker active"*, *"no dead-letter queue may hold more than 10 messages"*).
+- If everything passes, you get **green visual confirmation** on a beautiful dashboard.
+- If anything fails — or if the entire monitoring system itself stops firing — Argus sends you an **HTML alert email** with the exact reason, the measured numbers, and a direct link to drill in.
+
+It's the difference between **"I think things are running"** and **"I can see, right now, that the last 12 health checks across the last 12 hours all passed, and the actual measured values for every rule were inside the safe range."**
+
+---
+
+## The problem we solve
+
+Most monitoring tools alert you when something is *already broken*. That's necessary but not sufficient — because **silence is not the same as success**. If your monitor itself dies (a process crashes, a credential expires, a network rule changes), you stop getting alerts. You assume everything is fine. Then a real incident hits and you only find out from your customers.
+
+Argus solves this with three guarantees:
+
+1. **Visible positive confirmation.** The dashboard shows a strip of the last 20 runs as colored dots. Five green dots in a row is *proof* the schedule is firing AND producing healthy verdicts — not just absence of alerts.
+2. **Observed-value pills.** Next to every rule, the dashboard shows the *actual measured number* on the most recent run (e.g. `observed 1–3 ✓` next to a threshold of `≥ 1`). You don't just see "healthy" — you see the real numbers.
+3. **Stale-run detection.** If the scheduler should have run by now but hasn't, the workflow card turns yellow with a clear warning — *"No run since scheduled time (Xh overdue). Scheduler may have stopped — investigate before trusting the healthy badge."*
+
+The combination of these three means **the absence of an email is itself meaningful**: the dashboard is showing green dots, the observed numbers are in range, and the next-run timer is on schedule. You have *positive* evidence of health, not just *absence* of failure.
+
+---
+
+## How it works in plain English
+
+Think of Argus as an employee who, every hour during business hours:
+
+1. **Logs into your RabbitMQ admin interface** (using credentials you provided — encrypted on disk).
+2. **Reads the live state of every queue** that matches a name filter you set (e.g. "all queues containing the word `blueyonder`").
+3. **Compares the readings to your rules** ("at least 1 consumer", "no more than 50 backed-up messages", "DLQs under 10 messages").
+4. **If a rule fails** and you've enabled the *wait-and-confirm* safety net, Argus waits a configurable number of minutes and checks again — to avoid alerting on a transient blip.
+5. **Records the result** to a local database (every run is auditable forever — screenshots if vision mode, JSON data if API mode).
+6. **Sends an email** when something is genuinely wrong, with a clear subject line, the failing rule, the observed value, and a clickable link to the run detail page.
+7. **Updates the dashboard** so you can verify health at a glance from any browser.
+
+The "AI" in Argus AI refers to two things:
+
+- A **vision-AI fallback mode** (using Anthropic Claude or OpenAI GPT) that can read screenshots of any web admin UI, not just RabbitMQ. This is the "anything-monitorable" capability, useful when no API exists. See [README-VISION.md](./README-VISION.md) for details.
+- An **intelligent rule engine** that emits structured observed values and supports wait-and-confirm logic, going beyond simple "alert on threshold" tools.
+
+For RabbitMQ specifically, Argus uses the **direct API path** — it talks to RabbitMQ's HTTP Management API and never needs a browser, a screenshot, or an AI call. This makes it faster, cheaper, and more reliable.
+
+---
+
+## System architecture
+
+The diagram below shows how a single scheduled run flows through Argus end-to-end.
+
+```mermaid
+flowchart TB
+    classDef external fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef adapter fill:#312e81,stroke:#6366f1,color:#e0e7ff
+    classDef storage fill:#064e3b,stroke:#10b981,color:#d1fae5
+    classDef notifier fill:#7c2d12,stroke:#f97316,color:#fed7aa
+
+    Browser([Operator's Browser]):::external
+
+    subgraph ArgusServer[Argus AI - Node.js + Express]
+        direction TB
+        Pages[Web UI<br/>EJS + vanilla JS]
+        REST[REST API<br/>/api/jobs · /api/runs · /api/settings]
+        Sched[Scheduler<br/>node-cron]
+        Runner[Run Orchestrator<br/>wait-and-confirm logic]
+
+        subgraph Sources[Source Adapters - pluggable per workflow]
+            direction LR
+            APISrc[RabbitMQ API Adapter<br/>HTTP + Basic Auth]:::adapter
+            VisionSrc[Vision Adapter<br/>Playwright + AI]:::adapter
+        end
+
+        Rules[Rule Engine<br/>threshold checks +<br/>observed-value emission]
+        SQLite[(SQLite + WAL<br/>better-sqlite3)]:::storage
+        Notifier[Notifier Dispatcher]
+        DashSink[Dashboard Sink]:::notifier
+        EmailSink[Email Sink<br/>Resend SDK]:::notifier
+    end
+
+    RMQ[RabbitMQ Management API<br/>http(s)://host:15672/api/queues]:::external
+    Claude[Anthropic Claude API<br/>vision extraction]:::external
+    GPT[OpenAI GPT API<br/>vision extraction]:::external
+    Resend[Resend Transactional Email API]:::external
+    Inbox[Operator's Inbox]:::external
+
+    Browser -->|HTML| Pages
+    Browser -->|JSON| REST
+    REST <-->|read/write| SQLite
+    Pages -->|fetch| REST
+
+    Sched -->|fires per cron| Runner
+    Runner -->|"source_type = rabbitmq_api"| APISrc
+    Runner -->|"source_type = browser"| VisionSrc
+    APISrc -->|GET /api/queues| RMQ
+    VisionSrc -->|navigate + screenshot| RMQ
+    VisionSrc -->|extract JSON| Claude
+    VisionSrc -->|fallback extract| GPT
+
+    APISrc -->|Extracted JSON| Rules
+    VisionSrc -->|Extracted JSON| Rules
+    Rules -->|RuleResult array| Runner
+    Runner -->|persist verdict| SQLite
+    Runner -->|severity alert / system_error| Notifier
+    Notifier --> DashSink
+    Notifier --> EmailSink
+    EmailSink -->|HTTPS POST| Resend
+    Resend -->|deliver HTML email| Inbox
+```
+
+**Key idea:** the same rule engine and dashboard work for both source adapters. The **API adapter** is fast and free (no AI cost). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. You pick per workflow.
+
+---
+
+## Technology stack
+
+```mermaid
+flowchart TB
+    classDef frontendC fill:#1e3a8a,stroke:#60a5fa,color:#dbeafe
+    classDef appC fill:#312e81,stroke:#818cf8,color:#e0e7ff
+    classDef workerC fill:#7c2d12,stroke:#fb923c,color:#fed7aa
+    classDef dataC fill:#064e3b,stroke:#34d399,color:#d1fae5
+    classDef extC fill:#1f2937,stroke:#9ca3af,color:#d1d5db
+
+    subgraph Frontend[Presentation Layer]
+        direction LR
+        EJS["EJS templates"]:::frontendC
+        VanillaJS["Vanilla JS<br/>(no framework)"]:::frontendC
+        CSS["Custom CSS<br/>Geist font + dark theme"]:::frontendC
+        Mermaid["Mermaid diagrams<br/>(this README)"]:::frontendC
+    end
+
+    subgraph AppLayer[Application Layer]
+        direction LR
+        TS["TypeScript 5<br/>(strict mode)"]:::appC
+        Express["Express 4<br/>REST router"]:::appC
+        Zod["Zod<br/>(runtime schema validation)"]:::appC
+        CSRF["CSRF middleware<br/>+ rate limiting"]:::appC
+    end
+
+    subgraph Workers[Worker Layer]
+        direction LR
+        Cron["node-cron<br/>(scheduler)"]:::workerC
+        Fetch["Node 20 fetch<br/>(15s timeout)"]:::workerC
+        Playwright["Playwright<br/>(vision mode)"]:::workerC
+        AnthropicSDK["Anthropic SDK<br/>(vision mode)"]:::workerC
+        OpenAISDK["OpenAI SDK<br/>(vision mode)"]:::workerC
+        ResendSDK["Resend SDK<br/>(email alerts)"]:::workerC
+    end
+
+    subgraph Data[Data Layer]
+        direction LR
+        SQLite["better-sqlite3<br/>+ WAL mode"]:::dataC
+        AES["AES-256-GCM<br/>(credential encryption)"]:::dataC
+        ScryptKDF["scrypt KDF<br/>(key derivation)"]:::dataC
+    end
+
+    subgraph External[External Services]
+        direction LR
+        RMQAPI["RabbitMQ Mgmt API"]:::extC
+        ClaudeAPI["Anthropic Claude"]:::extC
+        GPTAPI["OpenAI GPT"]:::extC
+        ResendAPI["Resend"]:::extC
+    end
+
+    Frontend --> AppLayer
+    AppLayer --> Workers
+    AppLayer --> Data
+    Workers --> Data
+    Workers -.calls.-> External
+```
+
+**Why these choices in business terms:**
+
+| Layer | Choice | Why |
+|---|---|---|
+| Runtime | **Node.js 20** | Mature ecosystem, native `fetch()`, fast enough for sub-second response times. |
+| Language | **TypeScript** | Compile-time safety; mistakes are caught before they reach production. |
+| Database | **SQLite (WAL mode)** | Zero-config; no separate database server to operate. Auditable forever. |
+| Encryption | **AES-256-GCM** | Industry-standard for storing credentials at rest. The same algorithm banks use. |
+| Email | **Resend** | Modern transactional email service; free tier covers 100 emails/day. One API key, no SMTP gymnastics. |
+| UI | **Server-rendered EJS + vanilla JS** | No build pipeline, no React rebuild on every deploy. Fast to ship. Easy for any web developer to extend. |
+| Background runs | **node-cron** | Same syntax as Unix cron — familiar to operators. |
+| Schema validation | **Zod** | Validates every incoming API payload at the boundary; bad input never reaches business logic. |
+
+---
+
+## What happens during one run, step by step
+
+Imagine your cron schedule says "every hour, weekdays, 9 AM to 6 PM." Here is exactly what Argus does the moment that minute hand strikes:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Cron as Scheduler<br/>(node-cron)
+    participant Runner
+    participant Adapter as RabbitMQ Adapter
+    participant RMQ as RabbitMQ Mgmt API
+    participant Rules as Rule Engine
+    participant DB as SQLite
+    participant Email as Email Notifier
+    participant Inbox as Your Inbox
+
+    Cron->>Runner: trigger run(jobId)
+    Runner->>DB: insertRun(status='running')
+    Runner->>Adapter: fetchRabbitMqQueues(url, creds)
+    Adapter->>RMQ: GET /api/queues<br/>Authorization: Basic
+    RMQ-->>Adapter: JSON array of queues
+    Adapter-->>Runner: Extracted (queues + counts)
+    Runner->>Rules: evaluateRules(extracted, rules)
+    Rules-->>Runner: RuleResult[] (passed/failed + observed values)
+
+    alt All rules pass
+        Runner->>DB: updateRun(status='ok', summary, observed)
+        Note over Runner: Dashboard turns green<br/>No email sent
+    else Rule fails + wait_and_confirm enabled
+        Runner->>DB: updateRun(status='pending_recheck')
+        Note over Runner: Wait N minutes
+        Runner->>Adapter: fetchRabbitMqQueues (again)
+        Adapter->>RMQ: GET /api/queues
+        RMQ-->>Adapter: fresh JSON
+        Adapter-->>Runner: new Extracted
+        Runner->>Rules: evaluateRules (again)
+        Rules-->>Runner: new RuleResult[]
+        Runner->>DB: updateRun(final status)
+        alt Still failing
+            Runner->>Email: notify(severity=alert)
+            Email->>Inbox: HTML email with rule, observed value, link
+        end
+    else System error (timeout, auth, parse)
+        Runner->>DB: updateRun(status='system_error', error_message)
+        Runner->>Email: notify(severity=system_error)
+        Email->>Inbox: HTML email with error detail
+    end
+```
+
+The numbered arrows are the wire-level (network protocol) interactions. Each is timed, error-handled, and recorded.
+
+---
+
+## The dashboard — your single pane of glass
+
+Open `http://localhost:8000` in any browser. You'll see one card per workflow. Every card answers four questions at a glance:
+
+1. **Is it healthy right now?** The status badge (top-right of each card) shows `healthy`, `alert`, `system error`, `rechecking`, or `never run`, with semantic color (green/red/yellow).
+2. **Has it BEEN healthy recently?** The *recent-runs strip* shows the last 20 runs as colored squares (green = ok, red = alert, yellow = system error). Mouse-hover any square to see that run's timestamp and summary; click to open its detail page.
+3. **What are the actual measured numbers?** Next to each rule's threshold (e.g. `≥ 1`, `≤ 50`), an `observed N ✓` pill shows the actual value measured on the most recent run. You see `observed 1–3 ✓` next to `≥ 1` — meaning the consumer counts measured were between 1 and 3, comfortably above the threshold.
+4. **Is the schedule still firing?** The card shows "Last run" (relative) and "Next run" (absolute). If the next run was in the past and no new run has happened within a 5-minute grace window, a yellow stale-run banner appears: *"No run since scheduled time (Xh overdue). Scheduler may have stopped."*
+
+Click into any run to see its full detail: per-rule pass/fail, the extracted queue data table (with primary/DLQ pill badges), and — for vision-mode runs — the captured screenshots side by side.
+
+---
+
+## Health rules and thresholds
+
+A rule has six parts:
+
+| Part | Example | What it means |
+|---|---|---|
+| **Description** | `"Primary queues must have ≥ 1 consumer"` | Human-readable label, shown on dashboard and in alert emails. |
+| **Target** | `primary` / `dlq` / `all` | Which subset of queues this rule applies to. (DLQ = queue name ends in `.dlq`.) |
+| **Metric** | `consumer_count` / `ready_messages` / `unacked_messages` / `row_count` | Which number to look at. |
+| **Operator** | `>=`, `>`, `==`, `<=`, `<`, `!=` | How to compare. |
+| **Threshold** | `1` / `50` / `10` | The number to compare against. |
+| **Wait & confirm** | `true` / `false` + `wait_minutes` | If true, a single failure does not immediately alert. Argus waits N minutes and re-checks. Only a *second* failure produces an alert. Crucial for noisy metrics. |
+
+The seeded blueYonder workflow ships with four rules out of the box (see [seed.ts](src/seed.ts)), and you can add, edit, or remove rules from the **Job Builder** page (`/builder/{id}`).
+
+---
+
+## Self-confirmation — proving the system is alive
+
+This is the part most monitoring tools skip. Argus answers the question **"how do I know it's still working?"** in three independent ways:
+
+### 1. Recent-runs strip
+
+Every workflow card has a row of small colored squares — the last 20 runs in chronological order. The counter next to it shows `N/M healthy` (e.g. `19/20 healthy`). Five green squares in a row is a direct visual proof that:
+
+- The scheduler is firing on time.
+- The credentials still work.
+- The network path is open.
+- The rule engine is producing decisions.
+- The database is recording them.
+
+Compare to a single "healthy" badge, which can mean "the last run was OK" — but the last run might have been three days ago.
+
+### 2. Observed-value pills
+
+Each rule line shows `observed X ✓` (green) or `observed X ✗` (red) next to the threshold. The pill displays the actual measured number on the most recent run:
+
+- `row_count` rules show a single value.
+- Per-queue rules show a min–max range across the targeted queues (e.g. `observed 0–47 ✗` next to `≤ 10` clearly shows which queue is causing the trouble).
+
+This means you don't just see *"healthy"* — you see the **real numbers behind the verdict**. Reviewers can sanity-check the system without trusting a green badge.
+
+### 3. Stale-run detection
+
+If the time is past the scheduled next-run-at, plus a 5-minute grace window, and no run has happened, the card shows a prominent yellow banner: *"No run since scheduled time (Xh overdue). Scheduler may have stopped — investigate before trusting the healthy badge."*
+
+This catches the worst failure mode: **the monitor itself has died but the dashboard still shows the last (stale) verdict as healthy**.
+
+---
+
+## Email alerts (Resend)
+
+When a run produces an `alert` (a rule failed for real, including after wait-and-confirm) or a `system_error` (timeout, auth failure, malformed response), Argus sends an HTML email immediately.
+
+The email contains:
+
+- **Subject line**: `[Argus AI] 🔴 ALERT · Workflow Name — 1 of 4 rule(s) failed: dlq: violation on ready_messages ≤ 10 (orders.dlq=47)`
+- **Body**: a clean HTML card with a severity badge, the workflow name, the summary, a bulleted list of failing rules with their messages, the full error trace if it was a system error, and a one-click link to the run detail page on Argus.
+
+### Setup (one-time)
+
+1. Create a free account at [resend.com](https://resend.com) (no credit card needed; 100 emails/day on the free tier).
+2. Generate an API key from the Resend dashboard.
+3. Edit your `.env`:
+
+```ini
+RESEND_API_KEY=re_yourkeyhere
+NOTIFY_EMAIL_TO=you@yourcompany.com
+NOTIFY_EMAIL_FROM_NAME=Argus AI
+# Default from address uses Resend's onboarding sender (works for testing).
+# For production, verify your own domain in Resend and change this:
+NOTIFY_EMAIL_FROM=alerts@yourdomain.com
+PUBLIC_BASE_URL=http://your-argus-host:8000
+```
+
+4. Restart Argus. The Settings page (`/settings`) will now show a green **"configured"** badge under the Email Alerts section, and a **"Send test email"** button to verify the integration end-to-end.
+
+### Behavior when not configured
+
+Argus runs **just fine** without email configured — runs still complete, results still record to the dashboard. The Settings page shows the email section as **"not configured"** with a hint on how to enable it. No part of the system will block or break because email is missing.
+
+---
+
+## Quick start
 
 ```bash
-git clone <your-repo-url> ops-monitor
-cd ops-monitor
-
+git clone https://github.com/veerayk1/ops-monitor-node.git argus-ai
+cd argus-ai
 npm install
-npm run playwright:install
-# If Edge isn't installed: `npx playwright install chromium` and set BROWSER_CHANNEL=chromium in .env
-```
-
-### 2. Configure
-
-```bash
 cp .env.example .env
-```
 
-Open `.env` and set **at least one** of these (both is better — the second becomes your fallback):
+# Optional: edit .env to add Resend keys for email alerts.
+# RabbitMQ-API mode does not need any AI keys.
 
-- `ANTHROPIC_API_KEY=sk-ant-...` — get from console.anthropic.com
-- `OPENAI_API_KEY=sk-...` — get from platform.openai.com
-
-Optional but recommended:
-
-- `AI_PROVIDER_PRIMARY=anthropic` (or `openai`) — which to try first
-- `AI_PROVIDER_FALLBACK=openai` (or `anthropic`, or empty to disable) — what to try if the primary fails
-
-Other settings:
-
-- `ENCRYPTION_KEY` — leave **blank** on first run; the app generates one and writes it back automatically.
-- `BROWSER_MODE=headed` — visible window (recommended for demos). `headless` for production.
-- `BROWSER_CHANNEL=msedge` for Edge, `chromium` if Edge isn't installed.
-- `SCHEDULER_TZ=` — IANA timezone for cron (e.g. `America/Toronto`). Defaults to system.
-
-### 3. Run
-
-```bash
-npm run dev   # Live-reloading dev mode
-# OR
-npm run build && npm start   # Compiled production mode
+npm run build
+npm start
 ```
 
 Open **http://localhost:8000**.
 
-The blueYonder workflow is pre-seeded so you have something to see immediately.
+The first time it starts, Argus:
 
-### 4. Verify your AI keys work
+- Creates the SQLite database at `data/ops_monitor.db`.
+- Auto-generates an `ENCRYPTION_KEY` in your `.env` (used to encrypt stored RabbitMQ passwords at rest).
+- Seeds a sample workflow (`RabbitMQ — blueYonder Queues`) pointed at `http://canldsaav01d:15672` with a blank password.
 
-In the UI, click **Settings** in the sidebar. Each configured provider shows a **"Test connection"** button — click it to send a tiny request and confirm the key + network reachability work.
-
----
-
-## How the UI works
-
-### Sidebar
-Persistent left rail. **Dashboard** is the home view; **Settings** shows AI provider configuration; **+ New workflow** at the bottom.
-
-### Dashboard (`/`)
-A card per workflow, each showing:
-- Status badge (healthy / alert / never run / system error)
-- **Step-by-step flow visualization** of the configured browser steps
-- All health rules with their thresholds
-- Schedule, last run, next run, AI provider used
-- "Run now" / "View history" / "Edit" actions
-
-### Job Builder (`/builder`, `/builder/{id}`)
-Four sections:
-
-1. **Basics & connection** — name, URL, username, password (encrypted at rest)
-2. **Browser steps** — page path, filter text, columns to ensure visible, expected row count
-3. **Health rules** — add/remove dynamically. Each: target, metric, operator, threshold, optional wait-and-confirm
-4. **Schedule & AI** — cron expression + per-workflow AI provider override (System default | Anthropic only | OpenAI only)
-
-### Settings (`/settings`)
-- Shows which providers are configured (key hint masked, never the full key)
-- Shows the current primary → fallback chain
-- "Test connection" button per configured provider
-- Lists scheduler timezone and browser config
-
-### Run detail (`/runs/{id}`)
-- Captured screenshot(s) — if a recheck happened, both side-by-side
-- The verdict, including which AI provider produced it and what it cost
-- Per-rule pass/fail with reasoning
-- Fallback notes if the primary AI provider failed
-- Structured data table the AI extracted
+**To use the seeded workflow:** click **Edit** on the card → enter your RabbitMQ password → **Save** → **Run now**.
 
 ---
 
-## Architecture
+## Configuration reference (`.env`)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `HOST` | `127.0.0.1` | Network interface to bind. Use `0.0.0.0` to expose externally (behind a reverse proxy ideally). |
+| `PORT` | `8000` | HTTP port. |
+| `SCHEDULER_TZ` | system | IANA timezone for cron (e.g. `America/Toronto`). Leave blank for system default. |
+| `ENCRYPTION_KEY` | auto-gen | AES-256-GCM key for credential encryption. **Do not lose this file** — losing it makes stored RabbitMQ passwords unrecoverable. |
+| `ENCRYPTION_SALT` | auto-gen | scrypt KDF salt. Generated alongside the key. |
+| `RESEND_API_KEY` | *(blank)* | Resend API key. Leave blank to disable email alerts. |
+| `NOTIFY_EMAIL_FROM` | `onboarding@resend.dev` | Sender address. For production use a verified domain. |
+| `NOTIFY_EMAIL_FROM_NAME` | `Argus AI` | Friendly name shown in the recipient's inbox. |
+| `NOTIFY_EMAIL_TO` | *(blank)* | Recipient address(es). |
+| `PUBLIC_BASE_URL` | *(blank)* | Public URL of this Argus instance — used to make run-detail links clickable in emails. |
+| `ANTHROPIC_API_KEY` | *(blank)* | Only needed for **Vision mode**. RabbitMQ-API mode does not use this. |
+| `OPENAI_API_KEY` | *(blank)* | Only needed for **Vision mode** as a fallback. |
+| `BROWSER_MODE` | `headed` | `headed` shows the browser during vision runs; `headless` is invisible. |
+| `BROWSER_CHANNEL` | `msedge` | `msedge` for Edge, `chromium` for default Chromium. |
+
+---
+
+## Two operating modes: API-direct vs Vision
+
+Argus supports two ways to extract data from a monitoring target. **Each workflow chooses one mode** via its `source_type` field.
+
+### Mode 1 — RabbitMQ API direct (`source_type: 'rabbitmq_api'`) — **the default**
+
+- **What it does:** HTTP GET against `/api/queues` on the RabbitMQ management plugin, with HTTP Basic Auth.
+- **Speed:** ~10–100 ms per check.
+- **Cost:** Free. No AI calls.
+- **Reliability:** Depends only on the HTTP API itself; no brittle browser selectors.
+- **Limits:** Only works against systems that expose a structured API. For RabbitMQ this is built-in via the `rabbitmq_management` plugin.
+
+### Mode 2 — Vision (browser + AI) (`source_type: 'browser'`)
+
+- **What it does:** launches a real browser (Microsoft Edge or Chromium via Playwright), logs in, navigates, takes a screenshot, sends it to Claude or GPT, parses the structured JSON the model returns.
+- **Speed:** ~10–30 seconds per check.
+- **Cost:** A fraction of a cent per call (the screenshot is small).
+- **Reliability:** Works against *any* web UI, even systems with no API. AI is robust to minor UI changes.
+- **Use case:** legacy admin panels, third-party SaaS dashboards without APIs, anything that only has a human-facing UI.
+
+📖 **For full details on Vision mode** — how it works, when to use it, configuration, cost considerations — see **[README-VISION.md](./README-VISION.md)**.
+
+---
+
+## Security model
+
+Argus is designed to be self-hosted on a trusted network. The security primitives included:
+
+| Concern | How Argus handles it |
+|---|---|
+| **Stored credentials** | RabbitMQ usernames/passwords are encrypted in SQLite using AES-256-GCM. The encryption key lives only in `.env` (which is `.gitignore`d). |
+| **API keys** | Never displayed in the UI. The Settings page shows only a redacted hint (`sk-ant-…xxxx`). |
+| **CSRF protection** | All mutating endpoints require the `x-csrf-token` header. Tokens are 24-byte random, single-use-pool, 24h TTL. |
+| **Rate limiting** | 60 requests/minute on `/api/*`, 5/minute on manual run triggers and provider test endpoints. |
+| **HTTP headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. |
+| **XSS** | All user-sourced values pass through HTML entity encoding (`esc()`) before insertion. |
+| **No multi-user auth (v0.2)** | This is a single-operator POC. Bind to `127.0.0.1` and put behind an SSO proxy if you expose externally. Multi-user auth is on the roadmap. |
+
+---
+
+## Project structure
 
 ```
-ops-monitor/
+argus-ai/
 ├── src/
-│   ├── server.ts            # Express entry point
-│   ├── config.ts            # Settings + provider helpers
-│   ├── crypto.ts            # AES-256-GCM credential encryption
-│   ├── database.ts          # better-sqlite3 schema + CRUD + safe migrations
-│   ├── types.ts             # TS types + Zod validation schemas
-│   ├── notifications.ts     # Pluggable Notifier interface
-│   ├── scheduler.ts         # node-cron with timezone support
-│   ├── seed.ts              # Seeds blueYonder workflow on first run
-│   ├── api/
-│   │   ├── jobs.ts          # /api/jobs CRUD + manual run
-│   │   ├── runs.ts          # /api/runs history
-│   │   ├── settings.ts      # /api/settings + provider test
-│   │   └── pages.ts         # HTML page routes
+│   ├── server.ts              # Express entry, CSRF, rate limits, mounts routers
+│   ├── config.ts              # Env loading + validation
+│   ├── crypto.ts              # AES-256-GCM credential encryption
+│   ├── database.ts            # SQLite schema, migrations, CRUD
+│   ├── types.ts               # TypeScript + Zod schemas
+│   ├── notifications.ts       # Notifier dispatcher
+│   ├── notifications/
+│   │   └── email.ts           # Resend-based EmailNotifier
+│   ├── scheduler.ts           # node-cron + overlap protection
+│   ├── seed.ts                # First-run sample workflow
+│   ├── api/                   # Express routers
+│   │   ├── jobs.ts            # /api/jobs CRUD + manual run
+│   │   ├── runs.ts            # /api/runs history + detail
+│   │   ├── settings.ts        # /api/settings + provider test + email test
+│   │   └── pages.ts           # HTML page routes
 │   └── worker/
-│       ├── browser.ts       # Playwright workflow steps
-│       ├── rules.ts         # Rule engine
-│       ├── runner.ts        # Orchestrates one full run, including wait-and-confirm
-│       ├── evaluator.ts     # Provider dispatcher with fallback
-│       └── providers/
-│           ├── types.ts     # Shared interface + JSON parser
-│           ├── anthropic.ts # Claude vision impl + cost tracking
-│           └── openai.ts    # GPT vision impl + cost tracking
-├── views/
-│   ├── partials/{header,footer}.ejs   # Sidebar layout
+│       ├── runner.ts          # Orchestrates one run + wait-and-confirm
+│       ├── rabbitmq.ts        # RabbitMQ Management API adapter
+│       ├── browser.ts         # Playwright adapter (vision mode)
+│       ├── evaluator.ts       # AI provider dispatcher with fallback
+│       ├── rules.ts           # Rule engine + observed-value emission
+│       └── providers/         # Anthropic / OpenAI vision implementations
+├── views/                     # Server-rendered EJS templates
+│   ├── partials/
 │   ├── dashboard.ejs
 │   ├── builder.ejs
 │   ├── settings.ejs
@@ -167,60 +505,45 @@ ops-monitor/
 ├── public/
 │   ├── css/styles.css
 │   ├── js/{dashboard,builder,settings,run_detail}.js
-│   └── screenshots/         # All captured screenshots, kept indefinitely (audit trail)
-├── data/ops_monitor.db      # SQLite (created on first run)
+│   └── screenshots/           # Captured screenshots, kept for audit
+├── data/ops_monitor.db        # SQLite (created on first run, gitignored)
 ├── .env / .env.example
 ├── package.json
 ├── tsconfig.json
-└── README.md / CONTEXT.md
+├── README.md                  # ← you are here
+└── README-VISION.md           # Vision/browser mode reference
 ```
 
-### Multi-provider details
+---
 
-- **System default chain:** A workflow set to "system default" tries `AI_PROVIDER_PRIMARY` first; if it throws (network error, 4xx/5xx, malformed JSON), it automatically retries with `AI_PROVIDER_FALLBACK`.
-- **Per-workflow override:** Set a workflow's AI provider to "Anthropic only" or "OpenAI only" to lock it to one provider — no fallback.
-- **Run records track:** `ai_provider_used`, `ai_model_used`, `ai_cost_cents` (estimated from token counts), and `ai_fallback_notes` (which provider failed first, if any).
-- **Cost estimation:** uses approximate per-million-token prices baked into each provider file. Update the price tables in `src/worker/providers/anthropic.ts` and `openai.ts` if pricing changes.
+## Roadmap
 
-### Security model
-
-- API keys live in `.env` only. Never committed (`.gitignore` excludes `.env`). Never displayed in the UI — Settings page shows a key hint like `sk-ant-…xxxx` for confirmation only.
-- Workflow login credentials are encrypted with AES-256-GCM before being stored in SQLite. The encryption key itself lives in `.env`.
-- No authentication on the web UI yet — single-operator POC. Bind to `127.0.0.1` and don't expose externally.
-
-### Wait-and-confirm flow
-
-When a run finishes the first pass:
-
-- Every rule passes → status `ok`.
-- A rule fails AND has `wait_and_confirm: true` → status temporarily `pending_recheck`, worker sleeps for the longest configured `wait_minutes`, then re-runs the entire workflow. Final verdict comes from pass two.
-- Failing rules without wait-and-confirm → alert immediately on the first pass.
-
-### Notifications
-
-`src/notifications.ts` defines a `Notifier` interface. Dashboard is the v1 sink. To add email/Teams/Slack later, implement the interface and call `registerNotifier(...)`. The runner already calls `notify(...)` on alerts and system errors.
+| Status | Item |
+|---|---|
+| ✅ Done | RabbitMQ Management API source adapter |
+| ✅ Done | Recent-runs visual strip |
+| ✅ Done | Observed-value pills |
+| ✅ Done | Stale-run detection |
+| ✅ Done | Email alerts via Resend |
+| ✅ Done | Wait-and-confirm safety net |
+| 🚧 Next | Slack and Teams notifiers (same `Notifier` interface) |
+| 🚧 Next | Daily/weekly summary digests ("here's what ran in the last 24h") |
+| 🔮 Future | Multi-user auth + RBAC |
+| 🔮 Future | Source adapters for Kafka, RabbitMQ AMQP-direct, AWS SQS, Postgres |
+| 🔮 Future | Trend graphs (sparklines of consumer counts over time) |
 
 ---
 
-## Troubleshooting
+## Acknowledgments
 
-**`npm install` fails on `better-sqlite3` with `node-gyp` errors** → you're missing native build tools. On Windows: install Visual Studio Build Tools. On macOS: `xcode-select --install`. On Linux: `apt install python3 make g++`. Or swap to pure-JS sqlite3 (slower but no compile).
+**Argus Panoptes** was the giant in Greek mythology whose hundred eyes never all slept at once. Hera assigned him to watch the heifer Io, and only Hermes, sent by Zeus, was able to lull every eye closed long enough to free her. Argus is the original metaphor for "always-on observation."
 
-**`npm run playwright:install` fails** → try `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium` in `.env`.
+When his eyes were finally closed, Hera placed them on the tail of her peacock — which is why peacock feathers have that hundred-eye pattern to this day.
 
-**Browser window doesn't appear** → set `BROWSER_MODE=headed` in `.env` and restart.
-
-**"All AI providers failed" error** → check Settings page. Both keys may be missing or invalid. Use the Test connection buttons.
-
-**"401 Unauthorized" from Anthropic/OpenAI** → wrong key. Edit `.env`, restart.
-
-**Selectors fail mid-run** → RabbitMQ Management's HTML lacks stable test ids. The selectors in `src/worker/browser.ts` use multiple fallbacks, but if your version is different, edit the selector lists in `applyFilter()` and `ensureColumns()`.
+May your queues be ever-watched.
 
 ---
 
-## What's intentionally NOT in v1
-
-- No multi-user accounts or auth.
-- No external alert channels (email, Teams, Slack) — Notifier interface is in place for future addition.
-- No screenshot retention policy — everything is kept on disk.
-- No Angular frontend yet — the current EJS + vanilla JS frontend ships fast and looks great. Migration to Angular is planned for v2 once the team takes ownership; the JSON API is already Angular-ready.
+<div align="center">
+<sub>Argus AI · v0.2 · the hundred-eyed watchman for your operations</sub>
+</div>
