@@ -17,6 +17,8 @@
 
 ---
 
+> 🔀 **Want to rename this platform?** The brand is centralized in one file: [`src/branding.ts`](src/branding.ts). Edit the four lines there and the entire UI (sidebar, page titles, browser tab), startup banner, and email templates all rebrand automatically. See [How to rename this platform](#how-to-rename-this-platform) below.
+
 ## Table of Contents
 
 1. [What is Argus AI?](#what-is-argus-ai)
@@ -34,8 +36,9 @@
 13. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
 14. [Security model](#security-model)
 15. [Project structure](#project-structure)
-16. [Roadmap](#roadmap)
-17. [Acknowledgments](#acknowledgments)
+16. [How to rename this platform](#how-to-rename-this-platform)
+17. [Roadmap](#roadmap)
+18. [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -513,6 +516,63 @@ argus-ai/
 ├── README.md                  # ← you are here
 └── README-VISION.md           # Vision/browser mode reference
 ```
+
+---
+
+## How to rename this platform
+
+The current name **"Argus AI"** is a working name. Renaming is a one-file change.
+
+### Step 1 — Edit `src/branding.ts`
+
+Open [`src/branding.ts`](src/branding.ts) and change the four constants:
+
+```typescript
+export const BRAND = {
+  name: 'Argus AI',                                       // ← change this
+  tagline: 'the hundred-eyed watchman',                   // ← and this
+  longTagline: 'the hundred-eyed watchman for your operations',  // ← and this
+  version: 'v0.2',                                        // ← and this if version bumped
+} as const;
+```
+
+**Everywhere that reads from this object updates automatically:**
+
+| Where it shows up | How it pulls from `BRAND` |
+|---|---|
+| Sidebar brand block | `views/partials/header.ejs` → `<%= brand.name %>` |
+| Sidebar tagline | `views/partials/header.ejs` → `<%= brand.version %> · <%= brand.tagline %>` |
+| Browser tab title (every page) | `views/partials/header.ejs` → appends `" — " + brand.name` to each page's section title |
+| Server startup log | `src/server.ts` → `${BRAND.name} running at…` |
+| Email subject prefix | `src/notifications/email.ts` → `[${BRAND.name}] 🔴 ALERT · …` |
+| Email body run-detail link | `src/notifications/email.ts` → `View run #N on ${BRAND.name} →` |
+| Email footer | `src/notifications/email.ts` → `Sent by ${BRAND.name} · ${BRAND.longTagline}` |
+| Test-email subject + body | `src/api/settings.ts` |
+
+### Step 2 — Update the three files that don't import branding
+
+Some files are plain text/JSON without a JavaScript import — these need a separate manual update:
+
+| File | What to change | Why it's separate |
+|---|---|---|
+| `package.json` | `"name"` (npm slug — lowercase, hyphenated) and `"description"` | Plain JSON, no imports |
+| `README.md` | Hero block, headings, the Argus mythology section, all mentions | Documentation, not code |
+| `README-VISION.md` | Headings and mentions | Documentation, not code |
+
+### Step 3 — Rebuild and restart
+
+```bash
+npm run build
+npm start
+```
+
+That's it. Refresh the browser and the new name is everywhere.
+
+### What does NOT need to change
+
+- Database filename (`data/ops_monitor.db`) — keeping it stable means existing data on operator machines doesn't get orphaned. The filename is internal-only.
+- The `ENCRYPTION_KEY` and `ENCRYPTION_SALT` in `.env` — these are per-instance secrets, unrelated to the brand.
+- Internal code identifiers (variable names, table names, etc.) — only the **user-visible strings** are centralized.
 
 ---
 

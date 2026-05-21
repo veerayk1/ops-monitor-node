@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { ENV_PATH, isEmailConfigured, isProviderConfigured, settings, type ProviderName } from '../config.js';
+import { BRAND } from '../branding.js';
 import { anthropicProvider } from '../worker/providers/anthropic.js';
 import { openaiProvider } from '../worker/providers/openai.js';
 import { Resend } from 'resend';
@@ -170,10 +171,10 @@ settingsRouter.post('/email-test', async (_req, res) => {
     const result = await client.emails.send({
       from,
       to: settings.notifyEmailTo,
-      subject: '[Argus AI] Test email — configuration is working',
+      subject: `[${BRAND.name}] Test email — configuration is working`,
       html: `<!doctype html><html><body style="font-family:-apple-system,sans-serif;padding:24px;background:#f9fafb;">
         <div style="max-width:480px;margin:0 auto;background:#fff;padding:24px;border-radius:12px;border:1px solid #e5e7eb;">
-          <h2 style="margin:0 0 12px;color:#10b981;">✓ Argus AI email alerts are configured</h2>
+          <h2 style="margin:0 0 12px;color:#10b981;">✓ ${BRAND.name} email alerts are configured</h2>
           <p style="color:#4b5563;font-size:14px;line-height:1.5;margin:0;">
             This is a test message confirming the Resend integration is working.
             From now on you'll receive emails whenever a workflow run fails its

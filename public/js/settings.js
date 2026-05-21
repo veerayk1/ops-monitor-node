@@ -249,7 +249,8 @@
 
       const emailSub = document.createElement('p');
       emailSub.className = 'sub';
-      emailSub.textContent = 'Argus sends an HTML email whenever a run fails its health rules (alert) or hits a system error. Configured via .env using Resend.';
+      const brandName = (window.BRAND && window.BRAND.name) || 'This app';
+      emailSub.textContent = `${brandName} sends an HTML email whenever a run fails its health rules (alert) or hits a system error. Configured via .env using Resend.`;
       emailSection.appendChild(emailSub);
 
       const emailCard = document.createElement('div');

@@ -11,6 +11,7 @@ import { reloadAll } from './scheduler.js';
 import { seedIfEmpty } from './seed.js';
 import { registerNotifier } from './notifications.js';
 import { emailNotifier } from './notifications/email.js';
+import { BRAND } from './branding.js';
 
 const app = express();
 
@@ -46,9 +47,11 @@ function generateCsrfToken(): string {
   return token;
 }
 
-// Make CSRF token available to all EJS views
+// Make CSRF token + brand identity available to all EJS views.
+// Every view template can read `brand.name`, `brand.tagline`, etc.
 app.use((_req, res, next) => {
   res.locals.csrfToken = generateCsrfToken();
+  res.locals.brand = BRAND;
   next();
 });
 
@@ -80,7 +83,7 @@ registerNotifier(emailNotifier);
 reloadAll();
 
 const server = app.listen(settings.port, settings.host, () => {
-  console.log(`Argus AI running at http://${settings.host}:${settings.port}`);
+  console.log(`${BRAND.name} running at http://${settings.host}:${settings.port}`);
   console.log(`Project root: ${PROJECT_ROOT}`);
 });
 

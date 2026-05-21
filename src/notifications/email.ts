@@ -6,6 +6,7 @@
  * a console warning instead of throwing, so missing config never breaks a run.
  */
 import { Resend } from 'resend';
+import { BRAND } from '../branding.js';
 import { isEmailConfigured, settings } from '../config.js';
 import type { Notifier } from '../notifications.js';
 
@@ -31,7 +32,7 @@ function esc(s: unknown): string {
 function buildSubject(args: { jobName: string; severity: string; summary: string }): string {
   const tag = SEVERITY_LABEL[args.severity] || args.severity.toUpperCase();
   // Subject lines should be informative but compact (Gmail truncates around 70 chars)
-  const head = `[Argus AI] ${tag} · ${args.jobName}`;
+  const head = `[${BRAND.name}] ${tag} · ${args.jobName}`;
   // Don't append summary if it would make the subject unreadable
   if (head.length > 80) return head;
   const tail = ' — ' + args.summary;
@@ -65,7 +66,7 @@ function buildHtml(args: {
 
   const linkBase = settings.publicBaseUrl || `http://${settings.host}:${settings.port}`;
   const runLink = args.runId
-    ? `<p style="margin:24px 0 0;font-size:13px;"><a href="${esc(linkBase)}/runs/${args.runId}" style="color:#7c3aed;text-decoration:none;font-weight:500;">View run #${args.runId} on Argus →</a></p>`
+    ? `<p style="margin:24px 0 0;font-size:13px;"><a href="${esc(linkBase)}/runs/${args.runId}" style="color:#7c3aed;text-decoration:none;font-weight:500;">View run #${args.runId} on ${esc(BRAND.name)} →</a></p>`
     : '';
 
   return `<!doctype html>
@@ -87,7 +88,7 @@ function buildHtml(args: {
     </tr>
     <tr>
       <td style="padding:18px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;">
-        Sent by Argus AI · the hundred-eyed watchman for your operations
+        Sent by ${esc(BRAND.name)} · ${esc(BRAND.longTagline)}
       </td>
     </tr>
   </table>

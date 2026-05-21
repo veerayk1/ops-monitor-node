@@ -2,6 +2,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { BRAND } from './branding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -54,7 +55,7 @@ export const settings = {
   // Email alerts (Resend)
   resendApiKey: process.env.RESEND_API_KEY ?? '',
   notifyEmailFrom: process.env.NOTIFY_EMAIL_FROM ?? 'onboarding@resend.dev',
-  notifyEmailFromName: process.env.NOTIFY_EMAIL_FROM_NAME ?? 'Argus AI',
+  notifyEmailFromName: process.env.NOTIFY_EMAIL_FROM_NAME ?? BRAND.name,
   notifyEmailTo: process.env.NOTIFY_EMAIL_TO ?? '',
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? '',
 };
