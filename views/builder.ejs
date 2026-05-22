@@ -86,10 +86,36 @@
           <h2>3. Health rules</h2>
           <p>Each rule is checked against the data extracted from the screenshot. All must pass for the workflow to be marked OK.</p>
         </div>
+
+        <!-- AI-assisted rule generation: describe rules in plain English and let
+             Claude convert them into structured rules below. The endpoint is
+             tool-use based, so the model emits one structured rule per call. -->
+        <div class="ai-rules-box">
+          <div class="ai-rules-head">
+            <div>
+              <h3 class="ai-rules-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6L12 2z"/>
+                </svg>
+                Describe your rules in plain English
+              </h3>
+              <p class="ai-rules-sub">Type how you'd explain monitoring to a colleague. Argus uses Claude to convert your description into structured rules below. You can edit them after.</p>
+            </div>
+          </div>
+          <textarea id="f-ai-rules" class="ai-rules-textarea" rows="4" placeholder="Example: Every primary queue must have at least one consumer. If any DLQ goes above 10 ready messages, alert me — but wait 5 minutes to confirm. We should always have exactly 6 queues in total."></textarea>
+          <div class="ai-rules-actions">
+            <button type="button" id="ai-rules-btn" class="btn btn-ai">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6L12 2z"/></svg>
+              <span id="ai-rules-btn-label">Convert to rules</span>
+            </button>
+            <span class="ai-rules-hint">Requires <code>ANTHROPIC_API_KEY</code> in .env. The manual builder below works without it.</span>
+          </div>
+        </div>
+
         <div id="rule-list" class="rule-list"></div>
         <button type="button" class="rule-add" onclick="addRule()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
-          Add another rule
+          Add another rule manually
         </button>
       </div>
 

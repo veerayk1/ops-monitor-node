@@ -29,16 +29,17 @@
 6. [What happens during one run, step by step](#what-happens-during-one-run-step-by-step)
 7. [The dashboard — your single pane of glass](#the-dashboard--your-single-pane-of-glass)
 8. [Health rules and thresholds](#health-rules-and-thresholds)
-9. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
-10. [Email alerts (Resend)](#email-alerts-resend)
-11. [Quick start](#quick-start)
-12. [Configuration reference (.env)](#configuration-reference-env)
-13. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
-14. [Security model](#security-model)
-15. [Project structure](#project-structure)
-16. [How to rename this platform](#how-to-rename-this-platform)
-17. [Roadmap](#roadmap)
-18. [Acknowledgments](#acknowledgments)
+9. [Plain-English rule writing (powered by Claude)](#plain-english-rule-writing-powered-by-claude)
+10. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
+11. [Email alerts (Resend)](#email-alerts-resend)
+12. [Quick start](#quick-start)
+13. [Configuration reference (.env)](#configuration-reference-env)
+14. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
+15. [Security model](#security-model)
+16. [Project structure](#project-structure)
+17. [How to rename this platform](#how-to-rename-this-platform)
+18. [Roadmap](#roadmap)
+19. [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -86,18 +87,27 @@ Think of Argus as an employee who, every hour during business hours:
 6. **Sends an email** when something is genuinely wrong, with a clear subject line, the failing rule, the observed value, and a clickable link to the run detail page.
 7. **Updates the dashboard** so you can verify health at a glance from any browser.
 
-The "AI" in Argus AI refers to two things:
+The "AI" in Argus AI refers to **three** distinct capabilities:
 
+- A **plain-English rule writer** (Claude via tool-use). Type *"every primary queue should have at least 1 consumer and DLQs shouldn't exceed 10 ready messages"* into the Job Builder and Argus converts it to structured rules ready to save. See [Plain-English rule writing](#plain-english-rule-writing-powered-by-claude) below.
 - A **vision-AI fallback mode** (using Anthropic Claude or OpenAI GPT) that can read screenshots of any web admin UI, not just RabbitMQ. This is the "anything-monitorable" capability, useful when no API exists. See [README-VISION.md](./README-VISION.md) for details.
 - An **intelligent rule engine** that emits structured observed values and supports wait-and-confirm logic, going beyond simple "alert on threshold" tools.
 
-For RabbitMQ specifically, Argus uses the **direct API path** — it talks to RabbitMQ's HTTP Management API and never needs a browser, a screenshot, or an AI call. This makes it faster, cheaper, and more reliable.
+For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** — it talks to RabbitMQ's HTTP Management API directly, parses JSON, runs rules. AI is invoked only in two situations: (1) when an operator is *writing* rules in plain English in the Job Builder (interactive, one-off), or (2) when a workflow is explicitly configured for Vision mode (`source_type: 'browser'`, used for systems with no API). The blueYonder workflow that ships seeded uses the direct API path — so your queues are checked many times per day with no per-check AI cost.
 
 ---
 
 ## System architecture
 
-The diagram below shows how a single scheduled run flows through Argus end-to-end.
+<div align="center">
+  <img src="docs/architecture.svg" alt="Argus AI — full system architecture" width="100%" />
+  <br />
+  <sub><i>Full-resolution architecture diagram. Source: <a href="docs/architecture.d2">docs/architecture.d2</a> · Rendered with <a href="https://d2lang.com">D2</a> (ELK layout, dark-mauve theme).</i></sub>
+</div>
+
+<br />
+
+The Mermaid version below renders inline on GitHub (no image needed) and is kept in sync with the SVG. It shows how a single scheduled run flows through Argus end-to-end.
 
 ```mermaid
 flowchart TB
@@ -111,9 +121,10 @@ flowchart TB
     subgraph ArgusServer[Argus AI - Node.js + Express]
         direction TB
         Pages[Web UI<br/>EJS + vanilla JS]
-        REST[REST API<br/>/api/jobs · /api/runs · /api/settings]
+        REST[REST API<br/>/api/jobs · /api/runs · /api/settings · /api/rules/parse]
         Sched[Scheduler<br/>node-cron]
         Runner[Run Orchestrator<br/>wait-and-confirm logic]
+        RulesParser[Rules Parser<br/>plain English -&gt; structured<br/>Anthropic tool-use]:::adapter
 
         subgraph Sources[Source Adapters - pluggable per workflow]
             direction LR
@@ -138,6 +149,8 @@ flowchart TB
     Browser -->|JSON| REST
     REST <-->|read/write| SQLite
     Pages -->|fetch| REST
+    REST -->|"POST /api/rules/parse<br/>(plain English)"| RulesParser
+    RulesParser -->|"Anthropic tool-use<br/>structured rules"| Claude
 
     Sched -->|fires per cron| Runner
     Runner -->|"source_type = rabbitmq_api"| APISrc
@@ -158,7 +171,10 @@ flowchart TB
     Resend -->|deliver HTML email| Inbox
 ```
 
-**Key idea:** the same rule engine and dashboard work for both source adapters. The **API adapter** is fast and free (no AI cost). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. You pick per workflow.
+**Key ideas in the diagram:**
+
+- The **same rule engine and dashboard** work for both source adapters. The **API adapter** is fast and free (no AI cost at runtime). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. You pick per workflow.
+- The **Rules Parser** is a separate code path from the runtime. It's only called when the operator types plain English into the Job Builder and clicks *"Convert to rules"* — never during a scheduled run. So adding the AI-rule-writing feature adds **zero ongoing cost** to your monitoring; the model is invoked only when a human is actively writing rules.
 
 ---
 
@@ -193,7 +209,7 @@ flowchart TB
         Cron["node-cron<br/>(scheduler)"]:::workerC
         Fetch["Node 20 fetch<br/>(15s timeout)"]:::workerC
         Playwright["Playwright<br/>(vision mode)"]:::workerC
-        AnthropicSDK["Anthropic SDK<br/>(vision mode)"]:::workerC
+        AnthropicSDK["Anthropic SDK<br/>(vision mode +<br/>rules parser)"]:::workerC
         OpenAISDK["OpenAI SDK<br/>(vision mode)"]:::workerC
         ResendSDK["Resend SDK<br/>(email alerts)"]:::workerC
     end
@@ -318,6 +334,96 @@ The seeded blueYonder workflow ships with four rules out of the box (see [seed.t
 
 ---
 
+## Plain-English rule writing (powered by Claude)
+
+The structured rule form above is reliable but stiff. Most operators don't *think* about queues in terms of "target, metric, operator, threshold, wait-and-confirm" — they think in sentences. **"Every primary queue should have at least one consumer. If any DLQ goes above 10 ready messages, alert me, but wait 5 minutes to confirm. We should always have exactly 6 queues in total."**
+
+Argus accepts that paragraph directly. Paste it into the Job Builder's new **"Describe your rules in plain English"** box, click **✨ Convert to rules**, and three structured rules drop into the form below — already filled out, ready to be reviewed, tweaked, and saved.
+
+### How it works (under the hood)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Op as Operator
+    participant UI as Job Builder UI
+    participant API as POST /api/rules/parse
+    participant Claude as Anthropic Claude<br/>(tool-use)
+    participant Zod as Zod re-validator
+
+    Op->>UI: Type plain-English description, click ✨ Convert
+    UI->>API: POST { text: "..." }<br/>(with CSRF token)
+    Note over API: 503 if ANTHROPIC_API_KEY missing<br/>422 if input too long / empty
+    API->>Claude: messages.create(<br/> tools=[add_rule],<br/> tool_choice=any)
+    Claude-->>API: content = [tool_use("add_rule", {...}), ...]
+    Note over Claude: Schema-constrained:<br/>target ∈ {primary, dlq, all}<br/>metric ∈ {consumer_count, ready_messages, ...}<br/>operator ∈ {>=, <=, ==, ...}
+    API->>Zod: validate each tool input against RuleSchema
+    Note over Zod: Drops malformed rules,<br/>adds them to notes
+    Zod-->>API: validated Rule[]
+    API-->>UI: { rules, notes, model }
+    UI->>Op: addRule() per item — rules appear in form
+    Op->>UI: Review, edit, click Save workflow
+```
+
+1. The browser POSTs the text to `POST /api/rules/parse` on the Argus server.
+2. The server forwards the text to **Anthropic's Claude API** ([anthropic.com](https://www.anthropic.com/claude)) with a strict **tool-use definition** (a JSON-Schema-based contract that tells the model exactly which fields are allowed and what enum values each field can take — `target` ∈ `{primary, dlq, all}`, `metric` ∈ `{consumer_count, ready_messages, unacked_messages, row_count}`, and so on).
+3. The model is forced to call the `add_rule` tool — once per distinct rule it identifies in the text. **This is what guarantees structured output**: the model literally cannot emit free-form text instead of a rule.
+4. The server then **re-validates** every tool call against the Zod schema before accepting it, so even a hallucinated enum value or an out-of-range threshold gets filtered out and reported in the `notes` field of the response.
+5. The browser receives `{ rules: [...], notes: [...] }` and calls the same `addRule()` function the manual form uses — meaning the AI-generated rules are *visually indistinguishable* from manual ones, and the operator can edit any of them before saving.
+
+### Example: input → output
+
+> **Input (paste this into the box):**
+> *"Every primary queue must have at least one consumer. If any DLQ goes above 10 ready messages, alert me — but wait 5 minutes to confirm. We should always have exactly 6 queues in total."*
+
+| Description (from model) | target | metric | op | threshold | wait_and_confirm | wait_minutes |
+|---|---|---|---|---|---|---|
+| Every primary queue must have at least one consumer | `primary` | `consumer_count` | `>=` | `1` | `false` | `5` |
+| DLQs must not exceed 10 ready messages (with 5-min recheck) | `dlq` | `ready_messages` | `<=` | `10` | `true` | `5` |
+| Filter must show exactly 6 queues | `all` | `row_count` | `==` | `6` | `false` | `5` |
+
+### Why this matters for non-technical stakeholders
+
+| Before (manual form only) | After (plain-English option) |
+|---|---|
+| Operator must mentally map "no consumers" → `consumer_count` + `>=` + `1`. | Operator writes "needs a consumer" — the model handles the mapping. |
+| Easy to misclick the operator dropdown (`>=` vs `<=`). | Model picks the operator from the user's *language* — "no more than" → `<=`. |
+| New team members need a guided walk-through to write their first rule. | New team members write rules the way they'd describe them in Slack. |
+| Bulk-creating rules means clicking "Add another rule" N times. | Bulk-creating rules means writing a paragraph. |
+
+### Setup
+
+The feature is optional and **degrades gracefully**: if no API key is configured, the builder still works (you just won't see the AI shortcut take effect — the endpoint returns a clean `503` with a helpful hint message).
+
+To enable it:
+
+1. Get an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/) (the same place you'd get a key for Vision mode — they share the key).
+2. Add it to your `.env`:
+   ```ini
+   ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxx
+   # Optional override — default model is Claude Haiku for cost efficiency.
+   # You can switch to Sonnet for harder phrasing or Opus for maximum reliability.
+   RULES_PARSER_MODEL=claude-haiku-4-5-20251001
+   ```
+3. Restart Argus. The button is now live.
+
+### Limits, cost, and safety
+
+- **Cost:** Claude Haiku is roughly **$1 per million input tokens / $5 per million output tokens** at the time of writing. A typical rule-parsing call is ~300 input tokens and ~500 output tokens — under one cent per conversion. You can convert thousands of rule descriptions for a few dollars.
+- **Rate limit:** the `/api/rules/parse` endpoint is capped at **5 requests per minute** (same bucket as manual run triggers) to prevent runaway costs from a stuck UI loop.
+- **Input limit:** maximum **5,000 characters** per request. Longer text → reject with a clean `400`.
+- **Output limit:** maximum **12 rules** per request. If the model emits more, the first 12 are kept and the rest are summarized in the `notes` field.
+- **Validation:** every tool call is re-validated against the Zod schema (the same schema used by the manual form). Malformed rules are silently dropped and reported in `notes` so the operator can investigate.
+- **No data retention:** the prompt and response are not stored anywhere on the Argus server. They live only in the HTTP request/response and Anthropic's transient logs (per Anthropic's [data policy](https://www.anthropic.com/legal/privacy)).
+
+### What the model *will not* do
+
+- It will not invent metrics that don't exist in the schema. The enum is hard-constrained by the tool definition.
+- It will not save anything — the structured rules appear in the form, but the operator clicks **Save workflow** to commit.
+- It will not affect any *existing* rules in the form. The newly-parsed rules are *added* to the list; the operator can delete them with the trash-can icon if they're wrong.
+
+---
+
 ## Self-confirmation — proving the system is alive
 
 This is the part most monitoring tools skip. Argus answers the question **"how do I know it's still working?"** in three independent ways:
@@ -425,7 +531,9 @@ The first time it starts, Argus:
 | `NOTIFY_EMAIL_FROM_NAME` | `Argus AI` | Friendly name shown in the recipient's inbox. |
 | `NOTIFY_EMAIL_TO` | *(blank)* | Recipient address(es). |
 | `PUBLIC_BASE_URL` | *(blank)* | Public URL of this Argus instance — used to make run-detail links clickable in emails. |
-| `ANTHROPIC_API_KEY` | *(blank)* | Only needed for **Vision mode**. RabbitMQ-API mode does not use this. |
+| `ANTHROPIC_API_KEY` | *(blank)* | Used for **Vision mode** *and* for the **plain-English rules parser** in the Job Builder. RabbitMQ-API runtime mode does not require this. |
+| `ANTHROPIC_MODEL` | `claude-opus-4-5` | Model used by Vision mode. The rules parser uses its own model (see below). |
+| `RULES_PARSER_MODEL` | `claude-haiku-4-5-20251001` | Model used by the plain-English rules parser. Haiku is cheap and accurate enough for structured rule extraction; override with Sonnet or Opus for harder phrasing. |
 | `OPENAI_API_KEY` | *(blank)* | Only needed for **Vision mode** as a fallback. |
 | `BROWSER_MODE` | `headed` | `headed` shows the browser during vision runs; `headless` is invisible. |
 | `BROWSER_CHANNEL` | `msedge` | `msedge` for Edge, `chromium` for default Chromium. |
@@ -478,6 +586,7 @@ Argus is designed to be self-hosted on a trusted network. The security primitive
 argus-ai/
 ├── src/
 │   ├── server.ts              # Express entry, CSRF, rate limits, mounts routers
+│   ├── branding.ts            # ⭐ Single source of truth for brand (name/tagline/version)
 │   ├── config.ts              # Env loading + validation
 │   ├── crypto.ts              # AES-256-GCM credential encryption
 │   ├── database.ts            # SQLite schema, migrations, CRUD
@@ -491,6 +600,7 @@ argus-ai/
 │   │   ├── jobs.ts            # /api/jobs CRUD + manual run
 │   │   ├── runs.ts            # /api/runs history + detail
 │   │   ├── settings.ts        # /api/settings + provider test + email test
+│   │   ├── rules-parse.ts     # ⭐ /api/rules/parse — plain-English → structured rules
 │   │   └── pages.ts           # HTML page routes
 │   └── worker/
 │       ├── runner.ts          # Orchestrates one run + wait-and-confirm
@@ -586,6 +696,7 @@ That's it. Refresh the browser and the new name is everywhere.
 | ✅ Done | Stale-run detection |
 | ✅ Done | Email alerts via Resend |
 | ✅ Done | Wait-and-confirm safety net |
+| ✅ Done | Plain-English rule writing (Claude tool-use, hard-constrained schema) |
 | 🚧 Next | Slack and Teams notifiers (same `Notifier` interface) |
 | 🚧 Next | Daily/weekly summary digests ("here's what ran in the last 24h") |
 | 🔮 Future | Multi-user auth + RBAC |

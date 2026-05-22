@@ -166,6 +166,52 @@
     }
   });
 
+  // AI-assisted rule generation: POST the plain-English text to /api/rules/parse
+  // and call addRule() for each structured rule the server returns.
+  const aiRulesBtn = document.getElementById('ai-rules-btn');
+  const aiRulesText = document.getElementById('f-ai-rules');
+  const aiRulesLabel = document.getElementById('ai-rules-btn-label');
+  if (aiRulesBtn) {
+    aiRulesBtn.addEventListener('click', async () => {
+      const text = (aiRulesText.value || '').trim();
+      if (!text) {
+        showToast('Type a description first', 'error');
+        return;
+      }
+      const originalLabel = aiRulesLabel.textContent;
+      aiRulesBtn.disabled = true;
+      aiRulesLabel.textContent = 'Converting…';
+      try {
+        const r = await apiFetch('/api/rules/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+          timeout: 60_000,
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const hint = data.hint ? ` — ${data.hint}` : '';
+          showToast(`${data.error || `HTTP ${r.status}`}${hint}`, 'error');
+          return;
+        }
+        const rules = Array.isArray(data.rules) ? data.rules : [];
+        rules.forEach((rule) => addRule(rule));
+        const noteSuffix = data.notes && data.notes.length ? ` (${data.notes.length} note${data.notes.length === 1 ? '' : 's'})` : '';
+        showToast(`Added ${rules.length} rule${rules.length === 1 ? '' : 's'} from plain English${noteSuffix}`, 'success');
+        if (data.notes && data.notes.length) {
+          // Surface server-side notes (e.g. "Skipped rule #2: validation failed")
+          console.warn('[rules-parse notes]', data.notes);
+        }
+        aiRulesText.value = '';
+      } catch (err) {
+        showToast(`Conversion failed: ${err.message}`, 'error');
+      } finally {
+        aiRulesBtn.disabled = false;
+        aiRulesLabel.textContent = originalLabel;
+      }
+    });
+  }
+
   // Live cron description
   const cronInput = document.getElementById('f-cron');
   const cronHint = document.getElementById('cron-hint');

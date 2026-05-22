@@ -7,6 +7,7 @@ import { jobsRouter } from './api/jobs.js';
 import { runsRouter } from './api/runs.js';
 import { pagesRouter } from './api/pages.js';
 import { settingsRouter } from './api/settings.js';
+import { rulesParseRouter } from './api/rules-parse.js';
 import { reloadAll } from './scheduler.js';
 import { seedIfEmpty } from './seed.js';
 import { registerNotifier } from './notifications.js';
@@ -71,10 +72,13 @@ const runLimiter = rateLimit({ windowMs: 60_000, max: 5, message: { error: 'Too 
 app.use('/api', apiLimiter);
 app.use('/api/jobs/:id/run', runLimiter);
 app.use('/api/settings/test', runLimiter);
+// LLM calls are far more expensive than internal requests — limit harder
+app.use('/api/rules/parse', runLimiter);
 
 app.use('/api/jobs', jobsRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/rules/parse', rulesParseRouter);
 app.use('/', pagesRouter);
 
 validateSettings();

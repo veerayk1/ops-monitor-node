@@ -1,0 +1,313 @@
+# Argus AI — System Architecture
+#
+# D2 source for the high-resolution architecture diagram embedded in README.md.
+# Render with:
+#   d2 -t 200 --layout=elk docs/architecture.d2 docs/architecture.svg
+#
+# Theme 200 = "Dark Mauve" (matches the Argus UI palette).
+# Layout ELK gives the cleanest orthogonal routing for this style of diagram.
+
+direction: right
+
+vars: {
+  d2-config: {
+    theme-id: 200
+    pad: 28
+    sketch: false
+  }
+}
+
+# ─── External Actors ───────────────────────────────────────────────
+operator: "👤 Operator\n(human in browser)" {
+  shape: person
+  style: {
+    fill: "#1e1e26"
+    stroke: "#a78bfa"
+    stroke-width: 2
+    font-color: "#e0e7ff"
+    font-size: 16
+    bold: true
+    border-radius: 8
+  }
+}
+
+# ─── Argus AI Application ──────────────────────────────────────────
+argus: "Argus AI" {
+  style: {
+    fill: "#0f172a"
+    stroke: "#6366f1"
+    stroke-width: 3
+    font-color: "#e0e7ff"
+    font-size: 22
+    bold: true
+    border-radius: 16
+    stroke-dash: 0
+  }
+
+  ui: "🎨  Web UI Layer" {
+    style: {
+      fill: "#1e1b3a"
+      stroke: "#60a5fa"
+      font-color: "#dbeafe"
+      border-radius: 10
+    }
+
+    dashboard: "Dashboard\n(EJS + vanilla JS)\n— recent-runs strip\n— observed-value pills\n— stale-run warning" {
+      shape: rectangle
+      style.fill: "#1e3a8a"
+      style.stroke: "#60a5fa"
+      style.font-color: "#dbeafe"
+      style.border-radius: 8
+    }
+    builder: "Job Builder\n— manual rule form\n— ✨ plain-English\n   rule writer" {
+      shape: rectangle
+      style.fill: "#1e3a8a"
+      style.stroke: "#60a5fa"
+      style.font-color: "#dbeafe"
+      style.border-radius: 8
+    }
+    settings: "Settings page\n— provider tests\n— email test send" {
+      shape: rectangle
+      style.fill: "#1e3a8a"
+      style.stroke: "#60a5fa"
+      style.font-color: "#dbeafe"
+      style.border-radius: 8
+    }
+  }
+
+  api: "🔌  REST API (Express)" {
+    style: {
+      fill: "#2e1065"
+      stroke: "#a78bfa"
+      font-color: "#e9d5ff"
+      border-radius: 10
+    }
+
+    jobs: "/api/jobs\nCRUD + manual run trigger" {
+      style.fill: "#4c1d95"
+      style.stroke: "#a78bfa"
+      style.font-color: "#e9d5ff"
+      style.border-radius: 8
+    }
+    runs: "/api/runs\nhistory + run detail" {
+      style.fill: "#4c1d95"
+      style.stroke: "#a78bfa"
+      style.font-color: "#e9d5ff"
+      style.border-radius: 8
+    }
+    settings_api: "/api/settings\nprovider + email tests" {
+      style.fill: "#4c1d95"
+      style.stroke: "#a78bfa"
+      style.font-color: "#e9d5ff"
+      style.border-radius: 8
+    }
+    rules_parse: "/api/rules/parse  ⭐\nplain-English → structured\n(Claude tool-use)" {
+      style.fill: "#7c3aed"
+      style.stroke: "#c4b5fd"
+      style.stroke-width: 2
+      style.font-color: "#fff"
+      style.bold: true
+      style.border-radius: 8
+    }
+
+    middleware: "Security middleware\n— CSRF token validation\n— Rate limiting (60/min)\n— X-Frame-Options / nosniff" {
+      style.fill: "#312e81"
+      style.stroke: "#818cf8"
+      style.font-color: "#e0e7ff"
+      style.border-radius: 8
+      style.font-size: 11
+    }
+  }
+
+  workers: "⚙️  Worker / Run Orchestration" {
+    style: {
+      fill: "#3a1f0d"
+      stroke: "#fb923c"
+      font-color: "#fed7aa"
+      border-radius: 10
+    }
+
+    scheduler: "Scheduler\n(node-cron)\n— overlap protection\n— TZ-aware" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+    }
+
+    runner: "Run Orchestrator\n— one full run\n— wait-and-confirm\n   recheck loop" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+    }
+
+    sources: "Source Adapters\n(pluggable per workflow)" {
+      style.fill: "#451a03"
+      style.stroke: "#fdba74"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+
+      api_src: "RabbitMQ API\nadapter\n— HTTP fetch\n— 15s timeout\n— Basic Auth" {
+        style.fill: "#9a3412"
+        style.stroke: "#fb923c"
+        style.font-color: "#fed7aa"
+        style.border-radius: 6
+      }
+      vision_src: "Vision adapter\n— Playwright (Edge/Chromium)\n— Claude or GPT extraction\n— automatic fallback" {
+        style.fill: "#9a3412"
+        style.stroke: "#fb923c"
+        style.font-color: "#fed7aa"
+        style.border-radius: 6
+      }
+    }
+
+    rule_engine: "Rule Engine\n— threshold comparisons\n— observed value emission\n   (min, max, count)\n— wait-and-confirm logic" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+    }
+
+    notifier: "Notifier Dispatcher\n— Notifier interface\n— pluggable sinks" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+    }
+  }
+
+  data: "💾  Data Layer" {
+    style: {
+      fill: "#0c2e1f"
+      stroke: "#34d399"
+      font-color: "#d1fae5"
+      border-radius: 10
+    }
+
+    sqlite: "SQLite (WAL mode)\nbetter-sqlite3\n— jobs table\n— runs table" {
+      shape: cylinder
+      style.fill: "#064e3b"
+      style.stroke: "#34d399"
+      style.font-color: "#d1fae5"
+    }
+
+    crypto: "AES-256-GCM\n— credential encryption\n— scrypt KDF" {
+      shape: rectangle
+      style.fill: "#064e3b"
+      style.stroke: "#34d399"
+      style.font-color: "#d1fae5"
+      style.border-radius: 6
+    }
+
+    branding: "branding.ts\n⭐ single source of truth\nfor brand identity" {
+      shape: rectangle
+      style.fill: "#064e3b"
+      style.stroke: "#34d399"
+      style.font-color: "#d1fae5"
+      style.border-radius: 6
+    }
+  }
+}
+
+# ─── External Services ─────────────────────────────────────────────
+rmq: "🐰 RabbitMQ\nManagement API\n(host:15672/api)" {
+  shape: cloud
+  style: {
+    fill: "#3f1d1d"
+    stroke: "#f87171"
+    font-color: "#fecaca"
+  }
+}
+
+claude_api: "🧠 Anthropic Claude\n— vision (Opus)\n— rule parsing (Haiku)" {
+  shape: cloud
+  style: {
+    fill: "#1f1f3f"
+    stroke: "#a78bfa"
+    font-color: "#e9d5ff"
+  }
+}
+
+openai_api: "🧠 OpenAI GPT\n(vision fallback)" {
+  shape: cloud
+  style: {
+    fill: "#0f3f29"
+    stroke: "#34d399"
+    font-color: "#d1fae5"
+  }
+}
+
+resend_api: "✉️  Resend\nTransactional Email API" {
+  shape: cloud
+  style: {
+    fill: "#3f2e1f"
+    stroke: "#fbbf24"
+    font-color: "#fde68a"
+  }
+}
+
+inbox: "📥 Operator's Inbox" {
+  shape: rectangle
+  style: {
+    fill: "#1e1e26"
+    stroke: "#fbbf24"
+    font-color: "#fde68a"
+    border-radius: 6
+  }
+}
+
+# ─── Connections (with rich labels) ────────────────────────────────
+
+operator -> argus.ui.dashboard: "HTTP\n(auto-refresh 30s)" { style.stroke: "#a78bfa" }
+operator -> argus.ui.builder: "writes rules" { style.stroke: "#a78bfa" }
+
+argus.ui.dashboard -> argus.api.middleware: "fetch" { style.stroke: "#60a5fa" }
+argus.ui.builder -> argus.api.middleware: "POST" { style.stroke: "#60a5fa" }
+argus.ui.settings -> argus.api.middleware: "POST" { style.stroke: "#60a5fa" }
+
+argus.api.middleware -> argus.api.jobs: "" { style.stroke: "#818cf8" }
+argus.api.middleware -> argus.api.runs: "" { style.stroke: "#818cf8" }
+argus.api.middleware -> argus.api.settings_api: "" { style.stroke: "#818cf8" }
+argus.api.middleware -> argus.api.rules_parse: "" { style.stroke: "#c4b5fd"; style.stroke-width: 2 }
+
+argus.api.rules_parse -> claude_api: "plain English\n→ tool-use call\n→ structured rules" {
+  style.stroke: "#c4b5fd"
+  style.stroke-width: 2
+  style.font-color: "#c4b5fd"
+}
+
+argus.api.jobs -> argus.data.sqlite: "read / write" { style.stroke: "#a78bfa" }
+argus.api.runs -> argus.data.sqlite: "read" { style.stroke: "#a78bfa" }
+argus.api.jobs -> argus.workers.scheduler: "schedule / reload" { style.stroke: "#fb923c" }
+
+argus.workers.scheduler -> argus.workers.runner: "fires on cron" { style.stroke: "#fb923c"; style.bold: true }
+
+argus.workers.runner -> argus.workers.sources.api_src: "source_type =\nrabbitmq_api" { style.stroke: "#fb923c" }
+argus.workers.runner -> argus.workers.sources.vision_src: "source_type =\nbrowser" { style.stroke: "#fb923c" }
+
+argus.workers.sources.api_src -> rmq: "GET /api/queues\nBasic Auth" { style.stroke: "#f87171" }
+argus.workers.sources.vision_src -> rmq: "navigate +\nscreenshot" { style.stroke: "#f87171" }
+argus.workers.sources.vision_src -> claude_api: "screenshot →\nJSON extract" { style.stroke: "#a78bfa" }
+argus.workers.sources.vision_src -> openai_api: "fallback" {
+  style.stroke: "#34d399"
+  style.stroke-dash: 4
+}
+
+argus.workers.sources.api_src -> argus.workers.rule_engine: "Extracted JSON" { style.stroke: "#fb923c" }
+argus.workers.sources.vision_src -> argus.workers.rule_engine: "Extracted JSON" { style.stroke: "#fb923c" }
+argus.workers.rule_engine -> argus.workers.runner: "RuleResult[]\nwith observed values" { style.stroke: "#fb923c" }
+
+argus.workers.runner -> argus.data.sqlite: "persist verdict\n(status, summary,\nrule results)" { style.stroke: "#34d399" }
+argus.workers.runner -> argus.workers.notifier: "alert /\nsystem_error" { style.stroke: "#fb923c"; style.bold: true }
+
+argus.workers.notifier -> resend_api: "HTML email\n(HTTPS POST)" { style.stroke: "#fbbf24" }
+resend_api -> inbox: "deliver" { style.stroke: "#fbbf24" }
+
+argus.data.crypto -> argus.data.sqlite: "encrypts\ncredentials" {
+  style.stroke: "#34d399"
+  style.stroke-dash: 3
+}
+
+argus.data.branding -> argus.ui.dashboard: "brand" { style.stroke: "#34d399"; style.stroke-dash: 3 }
+argus.data.branding -> argus.ui.builder: "brand" { style.stroke: "#34d399"; style.stroke-dash: 3 }
+argus.data.branding -> argus.workers.notifier: "brand\n(email subject,\nfooter)" { style.stroke: "#34d399"; style.stroke-dash: 3 }
