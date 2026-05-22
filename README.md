@@ -19,14 +19,15 @@
 7. [The dashboard — single pane of glass](#the-dashboard--single-pane-of-glass)
 8. [Health rules and thresholds](#health-rules-and-thresholds)
 9. [Plain-English rule writing](#plain-english-rule-writing)
-10. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
-11. [Email alerts](#email-alerts)
-12. [Quick start](#quick-start)
-13. [Configuration reference (.env)](#configuration-reference-env)
-14. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
-15. [Security model](#security-model)
-16. [Project structure](#project-structure)
-17. [Roadmap](#roadmap)
+10. [Where AI fits in this platform](#where-ai-fits-in-this-platform)
+11. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
+12. [Email alerts](#email-alerts)
+13. [Quick start](#quick-start)
+14. [Configuration reference (.env)](#configuration-reference-env)
+15. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
+16. [Security model](#security-model)
+17. [Project structure](#project-structure)
+18. [Roadmap](#roadmap)
 
 ---
 
@@ -410,6 +411,38 @@ To enable it:
 - It will not invent metrics that don't exist in the schema. The enum is hard-constrained by the tool definition.
 - It will not save anything — the structured rules appear in the form, but the operator clicks **Save workflow** to commit.
 - It will not affect any *existing* rules in the form. The newly-parsed rules are *added* to the list; the operator can delete them with the trash-can icon if they're wrong.
+
+---
+
+## Where AI fits in this platform
+
+Argus is built so that **AI augments the platform but is never required for the monitoring loop to work**. The scheduled health checks that watch our RabbitMQ queues run on a direct HTTP API call — fast, free, deterministic. AI layers sit *on top* of the recorded data: they enrich, summarize, and explain.
+
+That separation is deliberate. It means we can roll out AI capabilities incrementally, switch them off without breaking monitoring, and always trust the underlying numbers regardless of which AI model is in use.
+
+### What AI is doing today
+
+One feature ships AI-active out of the box: the **Plain-English rule writer** in the Job Builder (described in the previous section). An operator types a paragraph in natural language, clicks Convert, and gets structured rules ready to save. This is the only AI surface in the platform today — invoked only by a deliberate human click, never by a scheduled run.
+
+### What AI could do next
+
+The architecture is already wired for a sequence of high-value AI capabilities. Each is scoped against the existing data model and notifier interface, so adding any of them is a focused two-to-five-day delivery rather than a redesign. The four highest-impact ones are summarized here; see [docs/AI-ROADMAP.md](docs/AI-ROADMAP.md) for the complete six-capability roadmap with cost estimates and architecture sketches.
+
+**1. Daily and weekly executive digest emails.** A Monday-morning automated narrative delivered to leadership and on-call rotations: *"247 runs this week, 99.2% healthy. Orders DLQ saw two transient spikes that recovered after wait-and-confirm. Consumer count trended down 18% — worth investigating."* Replaces the need to log into the dashboard for an at-a-glance status picture. Estimated cost: under one dollar per month.
+
+**2. Root-cause hints in alert emails.** When a rule fails, the alert email includes an AI-generated paragraph of context — recent trend, comparison to historical incidents, isolation of which queues are affected. Turns *"something broke"* into *"here is likely what broke and where to look."* Saves the first 5–10 minutes of triage on every real incident.
+
+**3. Trend-based anomaly detection.** Rules catch threshold breaches; AI catches slow drifts before they breach. A daily background analysis surfaces things like *"unacked_messages on the inventory queue has drifted from a 30-day baseline of 2 to 15 — still below the alert threshold but trending consistently upward."* Early warning, not late alarm.
+
+**4. Natural-language query interface.** A chat box on the dashboard. Operators ask in English: *"how many alerts on the orders workflow in the last 30 days?"* — AI translates to SQL via tool-use, the server runs it sandboxed read-only against SQLite, the dashboard returns the results as a chart or table. Turns the runs database into a self-service analytics layer.
+
+### Cost outlook
+
+If all six capabilities in the roadmap are enabled simultaneously at our current operational volume (one workflow, ~10 runs per day), the total monthly AI cost is estimated at **$10–15 per month**. For comparison, a single avoided incident or one fewer triage cycle covers a year of AI spend.
+
+### Honest framing
+
+We are not using AI for queue monitoring today, and we do not need to. The direct API path is the right tool for that job. AI is the layer above — for the things the current platform cannot do on its own, like generating prose summaries, hypothesizing root causes, or surfacing trends that no fixed threshold rule can catch. The capabilities listed above are designed and ready to build whenever the team decides the value is worth the integration effort.
 
 ---
 
