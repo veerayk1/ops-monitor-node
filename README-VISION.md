@@ -65,9 +65,9 @@ When a workflow with `source_type: 'browser'` fires:
 2. **Navigate to the URL.** From the workflow definition (`job.url + steps.page_path`).
 3. **Log in.** Argus types the username/password into whatever input fields it can find (multi-selector fallback chain).
 4. **Apply filters.** Type a filter string into the page's search/filter box (e.g. `"blueyonder"`) so only the relevant queues remain visible.
-5. **Ensure columns.** Click `+`/`-` toggles in column-picker UIs to make sure the metrics you care about (e.g. "Consumer count") are visible.
+5. **Ensure columns.** Click `+`/`-` toggles in column-picker UIs to make sure the relevant metrics (for example, "Consumer count") are visible.
 6. **Take a screenshot.** Saved to `public/screenshots/job_{id}/run_{timestamp}.png`. Kept forever as an audit trail.
-7. **Send the screenshot to an AI vision model.** Either Anthropic Claude or OpenAI GPT, depending on the provider chain you configured.
+7. **Send the screenshot to an AI vision model.** Either Anthropic Claude or OpenAI GPT, depending on the configured provider chain.
 8. **AI returns structured JSON.** The model is prompted to extract a normalized shape:
    ```json
    {
@@ -82,7 +82,7 @@ When a workflow with `source_type: 'browser'` fires:
    }
    ```
 9. **Feed into the same rule engine.** From this point the flow is *identical* to API-direct mode. Same rules, same wait-and-confirm, same notifier, same dashboard.
-10. **Record cost.** Each run stores `ai_cost_cents` so you can see at a glance what each check costs.
+10. **Record cost.** Each run stores `ai_cost_cents` so the per-check cost is visible at a glance.
 
 ---
 
@@ -127,7 +127,7 @@ flowchart LR
     Runner --> DB
 ```
 
-The screenshot is kept on disk as part of the audit trail. If you ever need to ask "what did the queue admin UI look like at 14:00 on Tuesday when the alert fired?" — you have the exact pixel-perfect evidence.
+The screenshot is kept on disk as part of the audit trail. If the team ever needs to ask "what did the queue admin UI look like at 14:00 on Tuesday when the alert fired?" — the exact pixel-perfect evidence is available.
 
 ---
 
@@ -153,7 +153,7 @@ BROWSER_MODE=headed              # 'headed' or 'headless'
 BROWSER_CHANNEL=msedge           # 'msedge' or 'chromium'
 ```
 
-You also need Playwright's browser binaries installed:
+Playwright's browser binaries also need to be installed:
 
 ```bash
 npm run playwright:install      # installs Microsoft Edge
@@ -183,7 +183,7 @@ The `run` record tracks:
 - `ai_cost_cents` — estimated cost in US cents (computed from input/output token counts).
 - `ai_fallback_notes` — a JSON-serialized list of any providers that failed before the successful one, with their error messages.
 
-The run-detail page surfaces all of this clearly. You can audit which provider was used and how much it cost for every single historical run.
+The run-detail page surfaces all of this clearly. The team can audit which provider was used and how much it cost for every single historical run.
 
 ---
 
@@ -199,7 +199,7 @@ Rough estimates per run, as of writing:
 | Anthropic Claude (Sonnet) | ~$0.002–$0.005 |
 | OpenAI GPT-4o | ~$0.003–$0.008 |
 
-Even at the upper bound, **a workflow running 10 times a day costs $0.10–$0.20 per day per workflow**. For five workflows running on a typical business-hours schedule, you're looking at **~$15–$30/month in AI costs.**
+Even at the upper bound, **a workflow running 10 times a day costs $0.10–$0.20 per day per workflow**. For five workflows running on a typical business-hours schedule, total monthly AI spend lands at **~$15–$30/month.**
 
 For comparison, the same workflow in **API-direct mode costs $0/month** — which is why we default to it for RabbitMQ.
 
@@ -213,7 +213,7 @@ The per-run cost is visible on the dashboard ("Last cost: 0.8¢") and on each ru
 |---|---|
 | **Selector fragility** | Browser-mode automation uses multi-selector fallbacks for login/filter/columns, but if a UI ships a substantial redesign, the run may fail. AI-vision extraction is more robust than the navigation step. |
 | **Anti-bot defenses** | If the target UI uses Cloudflare bot protection, CAPTCHAs, or Cloudflare Turnstile, Playwright will be blocked. Argus has no current evasion strategy by design (we don't want to encourage that). |
-| **Slow runs** | A vision run takes 10–30 seconds. If you have many workflows running at the top of every hour, they'll queue. Stagger schedules with different minute values (e.g. `0 * * * *`, `5 * * * *`, `10 * * * *`). |
+| **Slow runs** | A vision run takes 10–30 seconds. With many workflows scheduled at the top of every hour, they will queue. Stagger schedules with different minute values (for example, `0 * * * *`, `5 * * * *`, `10 * * * *`). |
 | **Screenshot disk usage** | Each screenshot is ~50–200 KB. Argus keeps them forever as an audit trail. Plan ~1–5 MB of disk per workflow per month for hourly schedules. There is no built-in retention policy in v0.2 — clean up manually if needed. |
 | **AI returns wrong JSON** | The prompts are strict and the parser is forgiving (skips malformed entries), but if the model genuinely can't understand the page (e.g. an empty error screen), Argus emits a system_error with `page_loaded_correctly=false`. |
 | **Cost surprises** | Always check the **Settings page → provider chain** to confirm which keys are set. A misconfigured primary may silently fall over to the more expensive fallback for every run. |
@@ -222,7 +222,7 @@ The per-run cost is visible on the dashboard ("Last cost: 0.8¢") and on each ru
 
 ## Migrating a workflow between Vision and API modes
 
-Suppose you originally created a workflow in Vision mode but later discover the target has an API. You can switch without losing run history:
+Suppose a workflow was originally created in Vision mode but the target later turns out to expose an API. The switch can be made without losing run history:
 
 1. Open the **Job Builder** for the workflow (`/builder/{id}`).
 2. Change the **Source type** dropdown from "Vision (browser)" to "API direct" (if the UI exposes the toggle — otherwise edit the JSON via `/api/jobs/{id}` PUT).

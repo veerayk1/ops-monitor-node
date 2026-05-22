@@ -164,7 +164,7 @@ flowchart TB
 
 **Key ideas in the diagram:**
 
-- The **same rule engine and dashboard** work for both source adapters. The **API adapter** is fast and free (no AI cost at runtime). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. You pick per workflow.
+- The **same rule engine and dashboard** work for both source adapters. The **API adapter** is fast and free (no AI cost at runtime). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. The adapter is configurable per workflow.
 - The **Rules Parser** is a separate code path from the runtime. It is only called when the operator types plain English into the Job Builder and clicks *"Convert to rules"* — never during a scheduled run. So adding the AI-rule-writing feature adds zero ongoing cost to our monitoring; the model is invoked only when a human is actively writing rules.
 
 ---
@@ -184,7 +184,6 @@ flowchart TB
         EJS["EJS templates"]:::frontendC
         VanillaJS["Vanilla JS<br/>(no framework)"]:::frontendC
         CSS["Custom CSS<br/>Geist font + dark theme"]:::frontendC
-        Mermaid["Mermaid diagrams<br/>(this README)"]:::frontendC
     end
 
     subgraph AppLayer[Application Layer]
@@ -256,7 +255,7 @@ sequenceDiagram
     participant Rules as Rule Engine
     participant DB as SQLite
     participant Email as Email Notifier
-    participant Inbox as Your Inbox
+    participant Inbox as Operator Inbox
 
     Cron->>Runner: trigger run(jobId)
     Runner->>DB: insertRun(status='running')
@@ -377,7 +376,7 @@ The seeded blueYonder workflow ships with four rules out of the box (see [seed.t
 
 The structured rule form above is reliable but stiff. Most operators do not think about queues in terms of "target, metric, operator, threshold, wait-and-confirm" — they think in sentences. *"Every primary queue should have at least one consumer. If any DLQ goes above 10 ready messages, alert me, but wait 5 minutes to confirm. We should always have exactly 6 queues in total."*
 
-Argus accepts that paragraph directly. The operator pastes it into the Job Builder's **"Describe your rules in plain English"** box, clicks **Convert to rules**, and three structured rules drop into the form below — already filled out, ready to be reviewed, tweaked, and saved.
+Argus accepts that paragraph directly. The operator pastes it into the plain-English description box in the Job Builder, clicks **Convert to rules**, and three structured rules drop into the form below — already filled out, ready to be reviewed, tweaked, and saved.
 
 ### How it works (under the hood)
 
@@ -441,14 +440,14 @@ To enable it:
    ```ini
    ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxx
    # Optional override — default model is Claude Haiku for cost efficiency.
-   # You can switch to Sonnet for harder phrasing or Opus for maximum reliability.
+   # Switch to Sonnet for harder phrasing or Opus for maximum reliability.
    RULES_PARSER_MODEL=claude-haiku-4-5-20251001
    ```
 3. Restart Argus. The button is now live.
 
 ### Limits, cost, and safety
 
-- **Cost:** Claude Haiku is roughly **$1 per million input tokens / $5 per million output tokens** at the time of writing. A typical rule-parsing call is ~300 input tokens and ~500 output tokens — under one cent per conversion. You can convert thousands of rule descriptions for a few dollars.
+- **Cost:** Claude Haiku is roughly **$1 per million input tokens / $5 per million output tokens** at the time of writing. A typical rule-parsing call is ~300 input tokens and ~500 output tokens — under one cent per conversion. Thousands of rule descriptions can be converted for a few dollars.
 - **Rate limit:** the `/api/rules/parse` endpoint is capped at **5 requests per minute** (same bucket as manual run triggers) to prevent runaway costs from a stuck UI loop.
 - **Input limit:** maximum **5,000 characters** per request. Longer text → reject with a clean `400`.
 - **Output limit:** maximum **12 rules** per request. If the model emits more, the first 12 are kept and the rest are summarized in the `notes` field.
@@ -545,7 +544,7 @@ The email contains:
 
 ```ini
 RESEND_API_KEY=re_yourkeyhere
-NOTIFY_EMAIL_TO=you@yourcompany.com
+NOTIFY_EMAIL_TO=alerts@ourcompany.com
 NOTIFY_EMAIL_FROM_NAME=Argus AI
 # Default from address uses Resend's onboarding sender (works for testing).
 # For production, verify our own domain in Resend and change this:
@@ -694,7 +693,7 @@ argus-ai/
 ├── .env / .env.example
 ├── package.json
 ├── tsconfig.json
-├── README.md                  # ← you are here
+├── README.md                  # this file
 └── README-VISION.md           # Vision/browser mode reference
 ```
 

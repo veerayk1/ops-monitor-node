@@ -112,7 +112,7 @@ The capabilities below are scoped, prioritized, and designed against the existin
 
 **Example suggestion.**
 
-> *"Over the past 60 days, your DLQs have stayed under 5 ready messages 98% of the time. Your current alert threshold is 10 (a good emergency level). Would you like to add an early-warning rule at 7? This would have surfaced the May 8 incident two hours earlier."*
+> *"Over the past 60 days, the DLQs have stayed under 5 ready messages 98% of the time. The current alert threshold is 10 (a good emergency level). Consider adding an early-warning rule at 7 — this would have surfaced the May 8 incident two hours earlier."*
 
 **How it works.** A periodic task analyzes the distribution of observed values for each rule, sends a summary to Claude, and asks for sensible additional rules with explanations. Suggestions appear on the dashboard with a one-click "Add this rule" button.
 
