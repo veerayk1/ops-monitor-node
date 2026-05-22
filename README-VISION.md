@@ -26,18 +26,18 @@
 
 ## Why Vision mode exists
 
-Not every system you need to monitor has a clean API. Some examples Argus has encountered:
+Not every system that needs monitoring has a clean API. Some examples Argus has encountered:
 
 - A 15-year-old internal admin panel built on ASP.NET WebForms with no JSON endpoints.
-- A SaaS dashboard whose vendor charges extra for API access but lets you log in via a browser for free.
+- A SaaS dashboard whose vendor charges extra for API access but permits browser login for free.
 - A queue management tool where the API exists but is locked behind an enterprise tier.
 - A custom Grafana-like UI built in-house that no one wrote API docs for.
 
 **Vision mode lets Argus monitor any of these.** It logs into the web UI the same way a human would, takes a screenshot, and asks an AI to read the screenshot and extract the data — the same data shape the rule engine consumes for any other source.
 
-If you can see it in a browser, Argus can read it.
+If it is visible in a browser, Argus can read it.
 
-The trade-off is that Vision is slower and costs a small fraction of a cent per check (an AI inference call). For systems that *do* have an API — like RabbitMQ — you should use the **API-direct mode** described in the main README. Vision is the universal fallback when nothing else works.
+The trade-off is that Vision is slower and costs a small fraction of a cent per check (an AI inference call). For systems that do have an API — like RabbitMQ — the team should use the **API-direct mode** described in the main README. Vision is the universal fallback when nothing else works.
 
 ---
 
@@ -45,13 +45,13 @@ The trade-off is that Vision is slower and costs a small fraction of a cent per 
 
 | Question | API direct (`rabbitmq_api`) | Vision (`browser`) |
 |---|---|---|
-| Does the target system expose a documented JSON API? | ✅ Required | ❌ Not needed |
-| Are HTTP credentials enough? | ✅ Just Basic Auth | ⚠️ Whatever the UI accepts |
+| Does the target system expose a documented JSON API? | Required | Not needed |
+| Are HTTP credentials enough? | Yes — Basic Auth | Depends on what the UI accepts |
 | Speed per check | ~10–100 ms | ~10–30 seconds |
 | Cost per check | Free | ~$0.001–$0.01 (AI inference) |
-| Brittle to UI redesigns? | ❌ No | ⚠️ Mildly — AI is robust but not magical |
-| Works against systems with no API? | ❌ No | ✅ Yes |
-| Recommended for RabbitMQ? | ✅ Yes — use this | Only as fallback |
+| Brittle to UI redesigns? | No | Mildly — AI is robust but not magical |
+| Works against systems with no API? | No | Yes |
+| Recommended for RabbitMQ? | Yes — use this | Only as fallback |
 
 **Rule of thumb:** if the target has a stable structured API, use API-direct. Reserve Vision for "I'd love to monitor this but the only way in is a login page."
 

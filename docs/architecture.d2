@@ -22,7 +22,7 @@ vars: {
 }
 
 # ─── External Actors ───────────────────────────────────────────────
-operator: "👤 Operator\n(human in browser)" {
+operator: "Operator\n(human in browser)" {
   shape: person
   style: {
     fill: "#1e1e26"
@@ -48,7 +48,7 @@ argus: "Argus AI" {
     stroke-dash: 0
   }
 
-  ui: "🎨  Web UI Layer" {
+  ui: "Web UI Layer" {
     style: {
       fill: "#1e1b3a"
       stroke: "#60a5fa"
@@ -63,7 +63,7 @@ argus: "Argus AI" {
       style.font-color: "#dbeafe"
       style.border-radius: 8
     }
-    builder: "Job Builder\n— manual rule form\n— ✨ plain-English\n   rule writer" {
+    builder: "Job Builder\n— manual rule form\n— plain-English rule writer" {
       shape: rectangle
       style.fill: "#1e3a8a"
       style.stroke: "#60a5fa"
@@ -79,7 +79,7 @@ argus: "Argus AI" {
     }
   }
 
-  api: "🔌  REST API (Express)" {
+  api: "REST API (Express)" {
     style: {
       fill: "#2e1065"
       stroke: "#a78bfa"
@@ -105,7 +105,7 @@ argus: "Argus AI" {
       style.font-color: "#e9d5ff"
       style.border-radius: 8
     }
-    rules_parse: "/api/rules/parse  ⭐\nplain-English → structured\n(Claude tool-use)" {
+    rules_parse: "/api/rules/parse\nplain-English → structured\n(Claude tool-use)" {
       style.fill: "#7c3aed"
       style.stroke: "#c4b5fd"
       style.stroke-width: 2
@@ -123,7 +123,7 @@ argus: "Argus AI" {
     }
   }
 
-  workers: "⚙️  Worker / Run Orchestration" {
+  workers: "Worker / Run Orchestration" {
     style: {
       fill: "#3a1f0d"
       stroke: "#fb923c"
@@ -180,7 +180,7 @@ argus: "Argus AI" {
     }
   }
 
-  data: "💾  Data Layer" {
+  data: "Data Layer" {
     style: {
       fill: "#0c2e1f"
       stroke: "#34d399"
@@ -203,7 +203,7 @@ argus: "Argus AI" {
       style.border-radius: 6
     }
 
-    branding: "branding.ts\n⭐ single source of truth\nfor brand identity" {
+    branding: "branding.ts\nsingle source of truth\nfor brand identity" {
       shape: rectangle
       style.fill: "#064e3b"
       style.stroke: "#34d399"
@@ -214,7 +214,7 @@ argus: "Argus AI" {
 }
 
 # ─── External Services ─────────────────────────────────────────────
-rmq: "🐰 RabbitMQ\nManagement API\n(host:15672/api)" {
+rmq: "RabbitMQ\nManagement API\n(host:15672/api)" {
   shape: cloud
   style: {
     fill: "#3f1d1d"
@@ -223,7 +223,7 @@ rmq: "🐰 RabbitMQ\nManagement API\n(host:15672/api)" {
   }
 }
 
-claude_api: "🧠 Anthropic Claude\n— vision (Opus)\n— rule parsing (Haiku)" {
+claude_api: "Anthropic Claude\n— vision (Opus)\n— rule parsing (Haiku)" {
   shape: cloud
   style: {
     fill: "#1f1f3f"
@@ -232,7 +232,7 @@ claude_api: "🧠 Anthropic Claude\n— vision (Opus)\n— rule parsing (Haiku)"
   }
 }
 
-openai_api: "🧠 OpenAI GPT\n(vision fallback)" {
+openai_api: "OpenAI GPT\n(vision fallback)" {
   shape: cloud
   style: {
     fill: "#0f3f29"
@@ -241,7 +241,7 @@ openai_api: "🧠 OpenAI GPT\n(vision fallback)" {
   }
 }
 
-resend_api: "✉️  Resend\nTransactional Email API" {
+resend_api: "Resend\nTransactional Email API" {
   shape: cloud
   style: {
     fill: "#3f2e1f"
@@ -250,7 +250,7 @@ resend_api: "✉️  Resend\nTransactional Email API" {
   }
 }
 
-inbox: "📥 Operator's Inbox" {
+inbox: "Operator Inbox" {
   shape: rectangle
   style: {
     fill: "#1e1e26"

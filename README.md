@@ -2,98 +2,85 @@
 
 # Argus AI
 
-**The hundred-eyed watchman for your operations.**
-
-*Always watching. Always confirming.*
-
-[![Node](https://img.shields.io/badge/Node-20%2B-43853d?logo=node.js&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
-[![SQLite](https://img.shields.io/badge/SQLite-WAL-003b57?logo=sqlite&logoColor=white)](https://sqlite.org)
-[![Resend](https://img.shields.io/badge/Email-Resend-000000)](https://resend.com)
-[![License](https://img.shields.io/badge/License-Proprietary-444)]()
+**Operations monitoring platform for our message-queue infrastructure.**
 
 </div>
 
 ---
-
-> 🔀 **Want to rename this platform?** The brand is centralized in one file: [`src/branding.ts`](src/branding.ts). Edit the four lines there and the entire UI (sidebar, page titles, browser tab), startup banner, and email templates all rebrand automatically. See [How to rename this platform](#how-to-rename-this-platform) below.
 
 ## Table of Contents
 
 1. [What is Argus AI?](#what-is-argus-ai)
 2. [The problem we solve](#the-problem-we-solve)
 3. [How it works in plain English](#how-it-works-in-plain-english)
-4. [System architecture (diagram)](#system-architecture)
-5. [Technology stack (diagram)](#technology-stack)
+4. [System architecture](#system-architecture)
+5. [Technology stack](#technology-stack)
 6. [What happens during one run, step by step](#what-happens-during-one-run-step-by-step)
-7. [The dashboard — your single pane of glass](#the-dashboard--your-single-pane-of-glass)
+7. [The dashboard — single pane of glass](#the-dashboard--single-pane-of-glass)
 8. [Health rules and thresholds](#health-rules-and-thresholds)
-9. [Plain-English rule writing (powered by Claude)](#plain-english-rule-writing-powered-by-claude)
+9. [Plain-English rule writing](#plain-english-rule-writing)
 10. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
-11. [Email alerts (Resend)](#email-alerts-resend)
+11. [Email alerts](#email-alerts)
 12. [Quick start](#quick-start)
 13. [Configuration reference (.env)](#configuration-reference-env)
 14. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
 15. [Security model](#security-model)
 16. [Project structure](#project-structure)
-17. [How to rename this platform](#how-to-rename-this-platform)
-18. [Roadmap](#roadmap)
-19. [Acknowledgments](#acknowledgments)
+17. [Roadmap](#roadmap)
 
 ---
 
 ## What is Argus AI?
 
-**Argus AI is a monitoring platform that watches your business-critical message queues and tells you — *with evidence* — whether they are healthy.**
+**Argus AI is an internal monitoring platform that watches our business-critical message queues and reports — with measured evidence — whether they are healthy.**
 
-Named after [Argus Panoptes](https://en.wikipedia.org/wiki/Argus_Panoptes), the giant in Greek mythology with a hundred eyes who never slept, Argus AI is designed for one job: **never miss a problem in your operational pipelines, and never let you assume "everything is fine" when it isn't.**
+It is designed for one objective: never miss a problem in our operational pipelines, and never let the team assume "everything is fine" when it isn't.
 
-In simple terms:
+In summary:
 
-- Argus connects to your queue system (currently **RabbitMQ**, via its built-in HTTP management interface — the same one you log into in a browser).
-- It reads the live state of your queues on a schedule you set (a *cron schedule* — think "every hour during business days").
-- It checks that state against the rules you defined (e.g. *"every primary queue must have at least one consumer worker active"*, *"no dead-letter queue may hold more than 10 messages"*).
-- If everything passes, you get **green visual confirmation** on a beautiful dashboard.
-- If anything fails — or if the entire monitoring system itself stops firing — Argus sends you an **HTML alert email** with the exact reason, the measured numbers, and a direct link to drill in.
+- Argus connects to our queue system (currently **RabbitMQ**, via its built-in HTTP Management interface — the same one operators log into in a browser).
+- It reads the live state of our queues on a configurable schedule (a *cron expression* — for example, "every hour during business days").
+- It checks that state against rules we have defined (e.g. *"every primary queue must have at least one consumer worker active"*, *"no dead-letter queue may hold more than 10 messages"*).
+- When every rule passes, the dashboard shows green visual confirmation.
+- When a rule fails — or when the monitoring system itself stops firing — Argus sends an HTML alert email with the exact reason, the measured numbers, and a direct link to the run detail page.
 
-It's the difference between **"I think things are running"** and **"I can see, right now, that the last 12 health checks across the last 12 hours all passed, and the actual measured values for every rule were inside the safe range."**
+It is the difference between *"I think things are running"* and *"I can see, right now, that the last 12 health checks across the last 12 hours all passed, and the actual measured values for every rule were inside the safe range."*
 
 ---
 
 ## The problem we solve
 
-Most monitoring tools alert you when something is *already broken*. That's necessary but not sufficient — because **silence is not the same as success**. If your monitor itself dies (a process crashes, a credential expires, a network rule changes), you stop getting alerts. You assume everything is fine. Then a real incident hits and you only find out from your customers.
+Most monitoring tools alert the team when something is *already broken*. That is necessary but not sufficient — because **silence is not the same as success**. If our monitor itself dies (a process crashes, a credential expires, a network rule changes), we stop receiving alerts. We assume everything is fine. Then a real incident hits and we only find out from our customers.
 
 Argus solves this with three guarantees:
 
-1. **Visible positive confirmation.** The dashboard shows a strip of the last 20 runs as colored dots. Five green dots in a row is *proof* the schedule is firing AND producing healthy verdicts — not just absence of alerts.
-2. **Observed-value pills.** Next to every rule, the dashboard shows the *actual measured number* on the most recent run (e.g. `observed 1–3 ✓` next to a threshold of `≥ 1`). You don't just see "healthy" — you see the real numbers.
-3. **Stale-run detection.** If the scheduler should have run by now but hasn't, the workflow card turns yellow with a clear warning — *"No run since scheduled time (Xh overdue). Scheduler may have stopped — investigate before trusting the healthy badge."*
+1. **Visible positive confirmation.** The dashboard shows a strip of the last 20 runs as colored dots. Five green dots in a row is proof the schedule is firing AND producing healthy verdicts — not just absence of alerts.
+2. **Observed-value pills.** Next to every rule, the dashboard shows the actual measured number on the most recent run (for example, `observed 1–3` next to a threshold of `≥ 1`). Operators do not just see "healthy" — they see the real numbers.
+3. **Stale-run detection.** If the scheduler should have run by now but hasn't, the workflow card turns yellow with a clear warning: *"No run since scheduled time (Xh overdue). Scheduler may have stopped — investigate before trusting the healthy badge."*
 
-The combination of these three means **the absence of an email is itself meaningful**: the dashboard is showing green dots, the observed numbers are in range, and the next-run timer is on schedule. You have *positive* evidence of health, not just *absence* of failure.
+The combination of these three means **the absence of an email is itself meaningful**: the dashboard is showing green dots, the observed numbers are in range, and the next-run timer is on schedule. The team has *positive* evidence of health, not just *absence* of failure.
 
 ---
 
 ## How it works in plain English
 
-Think of Argus as an employee who, every hour during business hours:
+Argus behaves like an automated operations engineer who, on a fixed schedule:
 
-1. **Logs into your RabbitMQ admin interface** (using credentials you provided — encrypted on disk).
-2. **Reads the live state of every queue** that matches a name filter you set (e.g. "all queues containing the word `blueyonder`").
-3. **Compares the readings to your rules** ("at least 1 consumer", "no more than 50 backed-up messages", "DLQs under 10 messages").
-4. **If a rule fails** and you've enabled the *wait-and-confirm* safety net, Argus waits a configurable number of minutes and checks again — to avoid alerting on a transient blip.
-5. **Records the result** to a local database (every run is auditable forever — screenshots if vision mode, JSON data if API mode).
-6. **Sends an email** when something is genuinely wrong, with a clear subject line, the failing rule, the observed value, and a clickable link to the run detail page.
-7. **Updates the dashboard** so you can verify health at a glance from any browser.
+1. **Calls our RabbitMQ Management API** using stored credentials (encrypted at rest with AES-256-GCM).
+2. **Reads the live state of every queue** that matches a configured name filter (for example, "all queues containing the substring `blueyonder`").
+3. **Compares the readings to our defined rules** ("at least 1 consumer", "no more than 50 backed-up messages", "DLQs under 10 messages").
+4. **If a rule fails** and the *wait-and-confirm* safety net is enabled, Argus waits a configurable number of minutes and checks again — to avoid alerting on a transient blip.
+5. **Records the result** to a local database (every run is auditable indefinitely — JSON data in API mode, screenshots in vision mode).
+6. **Sends an email** when a rule fails or the monitoring system itself errors out, with a clear subject line, the failing rule, the observed value, and a clickable link to the run detail page.
+7. **Updates the dashboard** so the team can verify health at a glance from any browser.
 
-The "AI" in Argus AI refers to **three** distinct capabilities:
+The "AI" in Argus AI refers to three distinct capabilities:
 
-- A **plain-English rule writer** (Claude via tool-use). Type *"every primary queue should have at least 1 consumer and DLQs shouldn't exceed 10 ready messages"* into the Job Builder and Argus converts it to structured rules ready to save. See [Plain-English rule writing](#plain-english-rule-writing-powered-by-claude) below.
-- A **vision-AI fallback mode** (using Anthropic Claude or OpenAI GPT) that can read screenshots of any web admin UI, not just RabbitMQ. This is the "anything-monitorable" capability, useful when no API exists. See [README-VISION.md](./README-VISION.md) for details.
+- A **plain-English rule writer** (Anthropic Claude via tool-use). An operator types *"every primary queue should have at least 1 consumer and DLQs shouldn't exceed 10 ready messages"* into the Job Builder and Argus converts it into structured rules ready to save. See [Plain-English rule writing](#plain-english-rule-writing) below.
+- A **vision-AI fallback mode** (using Anthropic Claude or OpenAI GPT) that can read screenshots of any web admin UI, not just RabbitMQ. This is the "anything-monitorable" capability for systems that expose no API. See [README-VISION.md](./README-VISION.md) for details.
 - An **intelligent rule engine** that emits structured observed values and supports wait-and-confirm logic, going beyond simple "alert on threshold" tools.
 
-For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** — it talks to RabbitMQ's HTTP Management API directly, parses JSON, runs rules. AI is invoked only in two situations: (1) when an operator is *writing* rules in plain English in the Job Builder (interactive, one-off), or (2) when a workflow is explicitly configured for Vision mode (`source_type: 'browser'`, used for systems with no API). The blueYonder workflow that ships seeded uses the direct API path — so your queues are checked many times per day with no per-check AI cost.
+For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** — Argus talks to RabbitMQ's HTTP Management API directly, parses the JSON response, runs the rule engine. AI is invoked only in two situations: (1) when an operator is *writing* rules in plain English in the Job Builder (interactive, one-off), or (2) when a workflow is explicitly configured for Vision mode (`source_type: 'browser'`, for systems with no API). The seeded blueYonder workflow uses the direct API path, so our queues are checked many times per day with no per-check AI cost.
 
 ---
 
@@ -109,7 +96,7 @@ For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** 
 
 <br />
 
-The Mermaid version below is also kept in sync — it's slightly more compact and renders inline on GitHub. It shows how a single scheduled run flows through Argus end-to-end.
+A compact inline view of the same architecture is below for quick reference. It shows the flow of a single scheduled run end-to-end.
 
 ```mermaid
 flowchart TB
@@ -176,7 +163,7 @@ flowchart TB
 **Key ideas in the diagram:**
 
 - The **same rule engine and dashboard** work for both source adapters. The **API adapter** is fast and free (no AI cost at runtime). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. You pick per workflow.
-- The **Rules Parser** is a separate code path from the runtime. It's only called when the operator types plain English into the Job Builder and clicks *"Convert to rules"* — never during a scheduled run. So adding the AI-rule-writing feature adds **zero ongoing cost** to your monitoring; the model is invoked only when a human is actively writing rules.
+- The **Rules Parser** is a separate code path from the runtime. It is only called when the operator types plain English into the Job Builder and clicks *"Convert to rules"* — never during a scheduled run. So adding the AI-rule-writing feature adds zero ongoing cost to our monitoring; the model is invoked only when a human is actively writing rules.
 
 ---
 
@@ -255,7 +242,7 @@ flowchart TB
 
 ## What happens during one run, step by step
 
-Imagine your cron schedule says "every hour, weekdays, 9 AM to 6 PM." Here is exactly what Argus does the moment that minute hand strikes:
+Assume the cron schedule is "every hour, weekdays, 9 AM to 6 PM." Here is exactly what Argus does the moment that minute strikes:
 
 ```mermaid
 sequenceDiagram
@@ -306,16 +293,16 @@ The numbered arrows are the wire-level (network protocol) interactions. Each is 
 
 ---
 
-## The dashboard — your single pane of glass
+## The dashboard — single pane of glass
 
-Open `http://localhost:8000` in any browser. You'll see one card per workflow. Every card answers four questions at a glance:
+The dashboard at `http://localhost:8000` shows one card per workflow. Every card answers four questions at a glance:
 
 1. **Is it healthy right now?** The status badge (top-right of each card) shows `healthy`, `alert`, `system error`, `rechecking`, or `never run`, with semantic color (green/red/yellow).
-2. **Has it BEEN healthy recently?** The *recent-runs strip* shows the last 20 runs as colored squares (green = ok, red = alert, yellow = system error). Mouse-hover any square to see that run's timestamp and summary; click to open its detail page.
-3. **What are the actual measured numbers?** Next to each rule's threshold (e.g. `≥ 1`, `≤ 50`), an `observed N ✓` pill shows the actual value measured on the most recent run. You see `observed 1–3 ✓` next to `≥ 1` — meaning the consumer counts measured were between 1 and 3, comfortably above the threshold.
+2. **Has it been healthy recently?** The recent-runs strip shows the last 20 runs as colored squares (green = ok, red = alert, yellow = system error). Hovering any square shows that run's timestamp and summary; clicking opens its detail page.
+3. **What are the actual measured numbers?** Next to each rule's threshold (for example `≥ 1`, `≤ 50`), an `observed N` pill shows the actual value measured on the most recent run. An `observed 1–3` pill next to `≥ 1` means the consumer counts measured were between 1 and 3, comfortably above the threshold.
 4. **Is the schedule still firing?** The card shows "Last run" (relative) and "Next run" (absolute). If the next run was in the past and no new run has happened within a 5-minute grace window, a yellow stale-run banner appears: *"No run since scheduled time (Xh overdue). Scheduler may have stopped."*
 
-Click into any run to see its full detail: per-rule pass/fail, the extracted queue data table (with primary/DLQ pill badges), and — for vision-mode runs — the captured screenshots side by side.
+Clicking into any run reveals the full detail: per-rule pass/fail, the extracted queue data table (with primary/DLQ pill badges), and — for vision-mode runs — the captured screenshots side by side.
 
 ---
 
@@ -332,15 +319,15 @@ A rule has six parts:
 | **Threshold** | `1` / `50` / `10` | The number to compare against. |
 | **Wait & confirm** | `true` / `false` + `wait_minutes` | If true, a single failure does not immediately alert. Argus waits N minutes and re-checks. Only a *second* failure produces an alert. Crucial for noisy metrics. |
 
-The seeded blueYonder workflow ships with four rules out of the box (see [seed.ts](src/seed.ts)), and you can add, edit, or remove rules from the **Job Builder** page (`/builder/{id}`).
+The seeded blueYonder workflow ships with four rules out of the box (see [seed.ts](src/seed.ts)); rules can be added, edited, or removed from the **Job Builder** page (`/builder/{id}`).
 
 ---
 
-## Plain-English rule writing (powered by Claude)
+## Plain-English rule writing
 
-The structured rule form above is reliable but stiff. Most operators don't *think* about queues in terms of "target, metric, operator, threshold, wait-and-confirm" — they think in sentences. **"Every primary queue should have at least one consumer. If any DLQ goes above 10 ready messages, alert me, but wait 5 minutes to confirm. We should always have exactly 6 queues in total."**
+The structured rule form above is reliable but stiff. Most operators do not think about queues in terms of "target, metric, operator, threshold, wait-and-confirm" — they think in sentences. *"Every primary queue should have at least one consumer. If any DLQ goes above 10 ready messages, alert me, but wait 5 minutes to confirm. We should always have exactly 6 queues in total."*
 
-Argus accepts that paragraph directly. Paste it into the Job Builder's new **"Describe your rules in plain English"** box, click **✨ Convert to rules**, and three structured rules drop into the form below — already filled out, ready to be reviewed, tweaked, and saved.
+Argus accepts that paragraph directly. The operator pastes it into the Job Builder's **"Describe your rules in plain English"** box, clicks **Convert to rules**, and three structured rules drop into the form below — already filled out, ready to be reviewed, tweaked, and saved.
 
 ### How it works (under the hood)
 
@@ -353,7 +340,7 @@ sequenceDiagram
     participant Claude as Anthropic Claude<br/>(tool-use)
     participant Zod as Zod re-validator
 
-    Op->>UI: Type plain-English description, click ✨ Convert
+    Op->>UI: Type plain-English description, click Convert
     UI->>API: POST { text: "..." }<br/>(with CSRF token)
     Note over API: 503 if ANTHROPIC_API_KEY missing<br/>422 if input too long / empty
     API->>Claude: messages.create(<br/> tools=[add_rule],<br/> tool_choice=any)
@@ -395,12 +382,12 @@ sequenceDiagram
 
 ### Setup
 
-The feature is optional and **degrades gracefully**: if no API key is configured, the builder still works (you just won't see the AI shortcut take effect — the endpoint returns a clean `503` with a helpful hint message).
+The feature is optional and degrades gracefully: if no API key is configured, the manual builder still works (the endpoint returns a clean `503` with a helpful hint message and the AI shortcut simply does not take effect).
 
 To enable it:
 
-1. Get an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/) (the same place you'd get a key for Vision mode — they share the key).
-2. Add it to your `.env`:
+1. Obtain an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/) (the same key works for Vision mode).
+2. Add it to the `.env` file:
    ```ini
    ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxx
    # Optional override — default model is Claude Haiku for cost efficiency.
@@ -449,7 +436,7 @@ Each rule line shows `observed X ✓` (green) or `observed X ✗` (red) next to 
 - `row_count` rules show a single value.
 - Per-queue rules show a min–max range across the targeted queues (e.g. `observed 0–47 ✗` next to `≤ 10` clearly shows which queue is causing the trouble).
 
-This means you don't just see *"healthy"* — you see the **real numbers behind the verdict**. Reviewers can sanity-check the system without trusting a green badge.
+This means the team does not just see *"healthy"* — they see the actual numbers behind the verdict. Reviewers can sanity-check the system without trusting a green badge.
 
 ### 3. Stale-run detection
 
@@ -459,29 +446,29 @@ This catches the worst failure mode: **the monitor itself has died but the dashb
 
 ---
 
-## Email alerts (Resend)
+## Email alerts
 
 When a run produces an `alert` (a rule failed for real, including after wait-and-confirm) or a `system_error` (timeout, auth failure, malformed response), Argus sends an HTML email immediately.
 
 The email contains:
 
-- **Subject line**: `[Argus AI] 🔴 ALERT · Workflow Name — 1 of 4 rule(s) failed: dlq: violation on ready_messages ≤ 10 (orders.dlq=47)`
+- **Subject line**: `[Argus AI] ALERT · Workflow Name — 1 of 4 rule(s) failed: dlq: violation on ready_messages ≤ 10 (orders.dlq=47)`
 - **Body**: a clean HTML card with a severity badge, the workflow name, the summary, a bulleted list of failing rules with their messages, the full error trace if it was a system error, and a one-click link to the run detail page on Argus.
 
 ### Setup (one-time)
 
 1. Create a free account at [resend.com](https://resend.com) (no credit card needed; 100 emails/day on the free tier).
 2. Generate an API key from the Resend dashboard.
-3. Edit your `.env`:
+3. Edit the `.env` file:
 
 ```ini
 RESEND_API_KEY=re_yourkeyhere
 NOTIFY_EMAIL_TO=you@yourcompany.com
 NOTIFY_EMAIL_FROM_NAME=Argus AI
 # Default from address uses Resend's onboarding sender (works for testing).
-# For production, verify your own domain in Resend and change this:
-NOTIFY_EMAIL_FROM=alerts@yourdomain.com
-PUBLIC_BASE_URL=http://your-argus-host:8000
+# For production, verify our own domain in Resend and change this:
+NOTIFY_EMAIL_FROM=alerts@ourdomain.com
+PUBLIC_BASE_URL=http://argus-host:8000
 ```
 
 4. Restart Argus. The Settings page (`/settings`) will now show a green **"configured"** badge under the Email Alerts section, and a **"Send test email"** button to verify the integration end-to-end.
@@ -512,10 +499,10 @@ Open **http://localhost:8000**.
 The first time it starts, Argus:
 
 - Creates the SQLite database at `data/ops_monitor.db`.
-- Auto-generates an `ENCRYPTION_KEY` in your `.env` (used to encrypt stored RabbitMQ passwords at rest).
+- Auto-generates an `ENCRYPTION_KEY` in the `.env` file (used to encrypt stored RabbitMQ passwords at rest).
 - Seeds a sample workflow (`RabbitMQ — blueYonder Queues`) pointed at `http://canldsaav01d:15672` with a blank password.
 
-**To use the seeded workflow:** click **Edit** on the card → enter your RabbitMQ password → **Save** → **Run now**.
+**To use the seeded workflow:** click **Edit** on the card → enter the RabbitMQ password → **Save** → **Run now**.
 
 ---
 
@@ -562,7 +549,7 @@ Argus supports two ways to extract data from a monitoring target. **Each workflo
 - **Reliability:** Works against *any* web UI, even systems with no API. AI is robust to minor UI changes.
 - **Use case:** legacy admin panels, third-party SaaS dashboards without APIs, anything that only has a human-facing UI.
 
-📖 **For full details on Vision mode** — how it works, when to use it, configuration, cost considerations — see **[README-VISION.md](./README-VISION.md)**.
+For full details on Vision mode — how it works, when to use it, configuration, and cost considerations — see **[README-VISION.md](./README-VISION.md)**.
 
 ---
 
@@ -578,7 +565,7 @@ Argus is designed to be self-hosted on a trusted network. The security primitive
 | **Rate limiting** | 60 requests/minute on `/api/*`, 5/minute on manual run triggers and provider test endpoints. |
 | **HTTP headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. |
 | **XSS** | All user-sourced values pass through HTML entity encoding (`esc()`) before insertion. |
-| **No multi-user auth (v0.2)** | This is a single-operator POC. Bind to `127.0.0.1` and put behind an SSO proxy if you expose externally. Multi-user auth is on the roadmap. |
+| **No multi-user auth (v0.2)** | This is a single-operator POC. Bind to `127.0.0.1` and put behind an SSO proxy if exposed externally. Multi-user auth is on the roadmap. |
 
 ---
 
@@ -588,7 +575,7 @@ Argus is designed to be self-hosted on a trusted network. The security primitive
 argus-ai/
 ├── src/
 │   ├── server.ts              # Express entry, CSRF, rate limits, mounts routers
-│   ├── branding.ts            # ⭐ Single source of truth for brand (name/tagline/version)
+│   ├── branding.ts            # Single source of truth for brand name/tagline/version
 │   ├── config.ts              # Env loading + validation
 │   ├── crypto.ts              # AES-256-GCM credential encryption
 │   ├── database.ts            # SQLite schema, migrations, CRUD
@@ -602,7 +589,7 @@ argus-ai/
 │   │   ├── jobs.ts            # /api/jobs CRUD + manual run
 │   │   ├── runs.ts            # /api/runs history + detail
 │   │   ├── settings.ts        # /api/settings + provider test + email test
-│   │   ├── rules-parse.ts     # ⭐ /api/rules/parse — plain-English → structured rules
+│   │   ├── rules-parse.ts     # /api/rules/parse — plain-English → structured rules
 │   │   └── pages.ts           # HTML page routes
 │   └── worker/
 │       ├── runner.ts          # Orchestrates one run + wait-and-confirm
@@ -631,92 +618,19 @@ argus-ai/
 
 ---
 
-## How to rename this platform
-
-The current name **"Argus AI"** is a working name. Renaming is a one-file change.
-
-### Step 1 — Edit `src/branding.ts`
-
-Open [`src/branding.ts`](src/branding.ts) and change the four constants:
-
-```typescript
-export const BRAND = {
-  name: 'Argus AI',                                       // ← change this
-  tagline: 'the hundred-eyed watchman',                   // ← and this
-  longTagline: 'the hundred-eyed watchman for your operations',  // ← and this
-  version: 'v0.2',                                        // ← and this if version bumped
-} as const;
-```
-
-**Everywhere that reads from this object updates automatically:**
-
-| Where it shows up | How it pulls from `BRAND` |
-|---|---|
-| Sidebar brand block | `views/partials/header.ejs` → `<%= brand.name %>` |
-| Sidebar tagline | `views/partials/header.ejs` → `<%= brand.version %> · <%= brand.tagline %>` |
-| Browser tab title (every page) | `views/partials/header.ejs` → appends `" — " + brand.name` to each page's section title |
-| Server startup log | `src/server.ts` → `${BRAND.name} running at…` |
-| Email subject prefix | `src/notifications/email.ts` → `[${BRAND.name}] 🔴 ALERT · …` |
-| Email body run-detail link | `src/notifications/email.ts` → `View run #N on ${BRAND.name} →` |
-| Email footer | `src/notifications/email.ts` → `Sent by ${BRAND.name} · ${BRAND.longTagline}` |
-| Test-email subject + body | `src/api/settings.ts` |
-
-### Step 2 — Update the three files that don't import branding
-
-Some files are plain text/JSON without a JavaScript import — these need a separate manual update:
-
-| File | What to change | Why it's separate |
-|---|---|---|
-| `package.json` | `"name"` (npm slug — lowercase, hyphenated) and `"description"` | Plain JSON, no imports |
-| `README.md` | Hero block, headings, the Argus mythology section, all mentions | Documentation, not code |
-| `README-VISION.md` | Headings and mentions | Documentation, not code |
-
-### Step 3 — Rebuild and restart
-
-```bash
-npm run build
-npm start
-```
-
-That's it. Refresh the browser and the new name is everywhere.
-
-### What does NOT need to change
-
-- Database filename (`data/ops_monitor.db`) — keeping it stable means existing data on operator machines doesn't get orphaned. The filename is internal-only.
-- The `ENCRYPTION_KEY` and `ENCRYPTION_SALT` in `.env` — these are per-instance secrets, unrelated to the brand.
-- Internal code identifiers (variable names, table names, etc.) — only the **user-visible strings** are centralized.
-
----
-
 ## Roadmap
 
 | Status | Item |
 |---|---|
-| ✅ Done | RabbitMQ Management API source adapter |
-| ✅ Done | Recent-runs visual strip |
-| ✅ Done | Observed-value pills |
-| ✅ Done | Stale-run detection |
-| ✅ Done | Email alerts via Resend |
-| ✅ Done | Wait-and-confirm safety net |
-| ✅ Done | Plain-English rule writing (Claude tool-use, hard-constrained schema) |
-| 🚧 Next | Slack and Teams notifiers (same `Notifier` interface) |
-| 🚧 Next | Daily/weekly summary digests ("here's what ran in the last 24h") |
-| 🔮 Future | Multi-user auth + RBAC |
-| 🔮 Future | Source adapters for Kafka, RabbitMQ AMQP-direct, AWS SQS, Postgres |
-| 🔮 Future | Trend graphs (sparklines of consumer counts over time) |
-
----
-
-## Acknowledgments
-
-**Argus Panoptes** was the giant in Greek mythology whose hundred eyes never all slept at once. Hera assigned him to watch the heifer Io, and only Hermes, sent by Zeus, was able to lull every eye closed long enough to free her. Argus is the original metaphor for "always-on observation."
-
-When his eyes were finally closed, Hera placed them on the tail of her peacock — which is why peacock feathers have that hundred-eye pattern to this day.
-
-May your queues be ever-watched.
-
----
-
-<div align="center">
-<sub>Argus AI · v0.2 · the hundred-eyed watchman for your operations</sub>
-</div>
+| Done | RabbitMQ Management API source adapter |
+| Done | Recent-runs visual strip |
+| Done | Observed-value pills |
+| Done | Stale-run detection |
+| Done | Email alerts via Resend |
+| Done | Wait-and-confirm safety net |
+| Done | Plain-English rule writing (Claude tool-use, hard-constrained schema) |
+| Planned | Slack and Teams notifiers (same `Notifier` interface) |
+| Planned | Daily/weekly summary digests ("here's what ran in the last 24h") |
+| Future | Multi-user auth + role-based access control |
+| Future | Source adapters for Kafka, RabbitMQ AMQP-direct, AWS SQS, Postgres |
+| Future | Trend graphs (sparklines of consumer counts over time) |
