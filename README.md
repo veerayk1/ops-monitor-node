@@ -100,14 +100,16 @@ For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** 
 ## System architecture
 
 <div align="center">
-  <img src="docs/architecture.svg" alt="Argus AI — full system architecture" width="100%" />
+  <a href="docs/architecture.svg" title="Click to open at full resolution">
+    <img src="docs/architecture.svg" alt="Argus AI — full system architecture" width="100%" />
+  </a>
   <br />
-  <sub><i>Full-resolution architecture diagram. Source: <a href="docs/architecture.d2">docs/architecture.d2</a> · Rendered with <a href="https://d2lang.com">D2</a> (ELK layout, dark-mauve theme).</i></sub>
+  <sub><i>Click the diagram to open at full resolution.</i></sub>
 </div>
 
 <br />
 
-The Mermaid version below renders inline on GitHub (no image needed) and is kept in sync with the SVG. It shows how a single scheduled run flows through Argus end-to-end.
+The Mermaid version below is also kept in sync — it's slightly more compact and renders inline on GitHub. It shows how a single scheduled run flows through Argus end-to-end.
 
 ```mermaid
 flowchart TB
