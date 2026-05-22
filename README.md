@@ -17,17 +17,18 @@
 5. [Technology stack](#technology-stack)
 6. [What happens during one run, step by step](#what-happens-during-one-run-step-by-step)
 7. [The dashboard — single pane of glass](#the-dashboard--single-pane-of-glass)
-8. [Health rules and thresholds](#health-rules-and-thresholds)
-9. [Plain-English rule writing](#plain-english-rule-writing)
-10. [Where AI fits in this platform](#where-ai-fits-in-this-platform)
-11. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
-12. [Email alerts](#email-alerts)
-13. [Quick start](#quick-start)
-14. [Configuration reference (.env)](#configuration-reference-env)
-15. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
-16. [Security model](#security-model)
-17. [Project structure](#project-structure)
-18. [Roadmap](#roadmap)
+8. [Designed to scale — multiple workflows on one platform](#designed-to-scale--multiple-workflows-on-one-platform)
+9. [Health rules and thresholds](#health-rules-and-thresholds)
+10. [Plain-English rule writing](#plain-english-rule-writing)
+11. [Where AI fits in this platform](#where-ai-fits-in-this-platform)
+12. [Self-confirmation — proving the system is alive](#self-confirmation--proving-the-system-is-alive)
+13. [Email alerts](#email-alerts)
+14. [Quick start](#quick-start)
+15. [Configuration reference (.env)](#configuration-reference-env)
+16. [Two operating modes: API-direct vs Vision](#two-operating-modes-api-direct-vs-vision)
+17. [Security model](#security-model)
+18. [Project structure](#project-structure)
+19. [Roadmap](#roadmap)
 
 ---
 
@@ -304,6 +305,54 @@ The dashboard at `http://localhost:8000` shows one card per workflow. Every card
 4. **Is the schedule still firing?** The card shows "Last run" (relative) and "Next run" (absolute). If the next run was in the past and no new run has happened within a 5-minute grace window, a yellow stale-run banner appears: *"No run since scheduled time (Xh overdue). Scheduler may have stopped."*
 
 Clicking into any run reveals the full detail: per-rule pass/fail, the extracted queue data table (with primary/DLQ pill badges), and — for vision-mode runs — the captured screenshots side by side.
+
+---
+
+## Designed to scale — multiple workflows on one platform
+
+The seeded blueYonder workflow is one example, not the limit of the platform. Argus is built to host **as many monitoring workflows as the team needs**, each one fully independent. A single Argus instance can simultaneously watch production RabbitMQ, staging RabbitMQ, multiple vhosts, multiple queue-name filters, and (as new source adapters land — see the roadmap) Kafka, AWS SQS, and Postgres targets.
+
+### What "independent workflow" actually means
+
+Every workflow defined in the Job Builder gets its own set of all of the following, isolated from every other workflow:
+
+| Property | Per-workflow configurable |
+|---|---|
+| Target URL | Yes — production cluster, staging cluster, a SaaS dashboard, any reachable endpoint |
+| Credentials | Yes — encrypted at rest with AES-256-GCM, stored separately per workflow |
+| Queue name filter | Yes — different workflows can watch different subsets of the same cluster |
+| Source adapter | Yes — `rabbitmq_api` (direct HTTP) or `browser` (Playwright + vision AI), pickable per workflow |
+| Health rules | Yes — each workflow has its own set of rules with its own thresholds |
+| Cron schedule | Yes — critical workflows can run every 5 minutes, lower-priority ones hourly or only during business hours |
+| Wait-and-confirm window | Yes — set per-rule, per-workflow |
+| AI provider override | Yes — a workflow can lock to Anthropic only, OpenAI only, or use the system default with automatic fallback |
+| Dashboard card | Yes — one card per workflow on the home page, with its own status badge, recent-runs strip, and observed-value pills |
+| Run history | Yes — completely separate per workflow, queryable independently in the SQLite database |
+
+### Realistic multi-workflow scenarios
+
+A few examples of how the team would use this capability in practice:
+
+- **Environment separation.** One workflow points at production RabbitMQ with strict rules and a 5-minute check cadence; a second workflow points at staging RabbitMQ with looser rules and an hourly cadence — same dashboard, side-by-side status.
+- **Business-unit separation.** A workflow per product line (blueYonder, redCircle, internal-tools), each with its own queue filter and its own health rules calibrated to that product's traffic patterns. Each team owns its workflow but sees the whole picture.
+- **SLA tiers.** Tier-1 mission-critical queues get aggressive rules and 5-minute checks. Tier-3 background-job queues get lenient rules and daily checks. All visible on one dashboard.
+- **Mixed sources on one platform.** Most workflows use the fast, free `rabbitmq_api` adapter. One workflow watches a legacy vendor dashboard that exposes no API, using the `browser` adapter (Playwright + vision AI). The team interacts with both in exactly the same way: same dashboard, same rules, same alerts.
+
+### Operationally lightweight
+
+Adding a new workflow takes one minute, no code change, no deploy:
+
+1. Click **+ New workflow** in the sidebar.
+2. Fill in the Job Builder form: name, URL, credentials, queue filter, rules (manually or via the plain-English writer), schedule.
+3. Save.
+
+The new workflow appears on the dashboard immediately, the scheduler picks up its cron expression, and it begins running on schedule. Removing a workflow is similarly one click — the Delete button on the Job Builder page removes the workflow and (optionally) its run history.
+
+### Architectural foundation
+
+The platform's data model is keyed entirely on workflow ID. The `jobs` table holds workflow configuration; the `runs` table holds run records linked to a workflow via foreign key. The scheduler (node-cron) maintains a separate scheduled task per workflow with overlap protection, so a slow run on one workflow never blocks others. The rule engine, notifier, and dashboard all operate per-workflow. There is no shared state between workflows beyond the database connection itself.
+
+This means **the cost of adding the second, fifth, or fiftieth workflow is constant** — it does not get harder as the team scales the platform across the organization.
 
 ---
 
