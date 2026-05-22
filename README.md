@@ -88,9 +88,13 @@ For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** 
 
 ## System architecture
 
+### The diagram in one paragraph
+
+An **operator** opens the web dashboard, defines what "healthy" means for each queue (the rules), and waits. The **Monitoring Engine** runs on a schedule, asks the queue cluster for live numbers through one of two **Data Source Connectors**, evaluates the numbers against the rules, records the result in the **local database**, and triggers an **email alert** if anything fails. The same dashboard shows live status, history, and observed numbers — no need to log into RabbitMQ itself.
+
 <div align="center">
   <a href="docs/architecture.svg" title="Click to open at full resolution">
-    <img src="docs/architecture.svg" alt="Argus AI — full system architecture" width="100%" />
+    <img src="docs/architecture.svg" alt="Argus AI — system architecture" width="100%" />
   </a>
   <br />
   <sub><i>Click the diagram to open at full resolution.</i></sub>
@@ -98,10 +102,36 @@ For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** 
 
 <br />
 
-**Key ideas in the diagram:**
+### The five blocks, in plain language
 
-- The **same rule engine and dashboard** work for both source adapters. The **API adapter** is fast and free (no AI cost at runtime). The **vision adapter** is slower but can monitor *anything that has a web UI*, even if it has no API. The adapter is configurable per workflow.
-- The **Rules Parser** is a separate code path from the runtime. It is only called when the operator types plain English into the Job Builder and clicks *"Convert to rules"* — never during a scheduled run. So adding the AI-rule-writing feature adds zero ongoing cost to our monitoring; the model is invoked only when a human is actively writing rules.
+1. **Web Dashboard** — what the operator sees in a browser. Shows live status, recent runs, and the rules that define healthy. Built so a non-technical person can review at a glance.
+2. **Monitoring Engine** — the scheduled "brain" of the platform. Three sub-components: the Scheduler (decides *when* a check runs), the Health Rule Engine (decides *whether the numbers are OK*), and the Wait-and-Confirm Safety Net (avoids false alarms by re-checking transient failures).
+3. **Data Source Connectors** — *how* the platform gets the live numbers. Two options, chosen per workflow:
+   - **Option 1 — Direct API.** Calls RabbitMQ's built-in management API over HTTPS. Used for all our current workflows. Fast (~50 ms), free, and the most reliable path.
+   - **Option 2 — Universal Adapter (AI Vision).** A strategic fallback. Logs into any web admin UI using a headless browser (Playwright + Microsoft Edge or Chromium) and uses AI (Anthropic Claude or OpenAI GPT) to read the screen. This lets us monitor *anything that has a UI* — including legacy systems, vendor SaaS dashboards, or future products that expose no API. Currently inactive for our RabbitMQ workflows because Option 1 is the better fit, but available immediately when needed.
+4. **Audit & Storage** — every run is recorded indefinitely in a local database (SQLite). Operator credentials are encrypted at rest (AES-256-GCM). Run history is queryable forever — useful for postmortems and compliance.
+5. **Alert System** — when a rule fails or the monitoring system itself errors out, an HTML email is sent via [Resend](https://resend.com) (a transactional-email service). The email contains the failing rule, the observed numbers, and a one-click link to the run detail page.
+
+### Where AI fits (and where it doesn't)
+
+The monitoring path uses **zero AI calls at runtime**. The platform talks to RabbitMQ directly. Queue checks are deterministic and free, no matter how many times they run per day.
+
+AI (Anthropic Claude) is invoked in **two clearly-bounded, optional places**, both shown in the diagram with dashed or labeled lines:
+
+- **The AI Rule Assistant** — when an operator clicks the *Convert to rules* button after typing rules in plain English. One-off, on demand, never automatic. Approximately one cent per click. If the API key is removed, the manual rule form still works.
+- **The Universal Adapter (Option 2)** — would invoke Claude or GPT only if a workflow is configured to use Option 2 instead of Option 1. Currently no workflow uses Option 2, so no AI is invoked at runtime today.
+
+### Talking points for cross-questions
+
+Anticipated leadership questions and concise answers:
+
+- *"Why are we using AI at all?"* — In one optional spot (rule writing) and as a strategic fallback (Option 2 adapter). Day-to-day monitoring uses no AI.
+- *"What if Anthropic goes down?"* — Monitoring is unaffected. Only the rule-writing helper is unavailable, and the manual rule builder still works fully.
+- *"What if RabbitMQ changes its API or moves to a different vendor?"* — Option 2 (the Universal Adapter) handles it. Any system with a web UI can be monitored — the team is not locked into RabbitMQ.
+- *"What's the cost of AI usage?"* — Effectively zero for scheduled monitoring. Pennies per month for rule-writing usage at our scale.
+- *"Can we monitor more than just RabbitMQ?"* — Yes. The Data Source Connectors are pluggable per workflow. Today: RabbitMQ via Option 1. Tomorrow: Kafka, AWS SQS, Postgres via Option 1, or any browser-accessible UI via Option 2.
+- *"Is the data we store secure?"* — Credentials are encrypted at rest (AES-256-GCM, the same algorithm banks use). The platform binds to localhost by default; if exposed externally it sits behind our SSO proxy. Full details in the [Security model](#security-model) section.
+- *"How fast is this?"* — Each scheduled queue check completes in under 100 milliseconds on Option 1. On Option 2 (AI vision), 10–30 seconds.
 
 ---
 

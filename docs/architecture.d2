@@ -1,27 +1,24 @@
 # Argus AI — System Architecture
 #
-# D2 source for the high-resolution architecture diagram embedded in README.md.
+# This diagram is designed for non-technical leadership review.
+# Labels favor business language; technical detail is in brackets.
+#
 # Render with:
 #   d2 -t 200 --layout=elk docs/architecture.d2 docs/architecture.svg
-#   # then ensure the outer <svg> has explicit width/height (D2 omits them by
-#   # default, which makes <img>-embed render at the browser's 300x150 fallback):
 #   sed -i.bak 's|preserveAspectRatio="xMinYMin meet" viewBox="0 0 \([0-9]*\) \([0-9]*\)"|width="\1" height="\2" preserveAspectRatio="xMinYMin meet" viewBox="0 0 \1 \2"|' docs/architecture.svg
 #   rm docs/architecture.svg.bak
-#
-# Theme 200 = "Dark Mauve" (matches the Argus UI palette).
-# Layout ELK gives the cleanest orthogonal routing for this style of diagram.
 
 direction: down
 
 vars: {
   d2-config: {
     theme-id: 200
-    pad: 28
+    pad: 32
     sketch: false
   }
 }
 
-# ─── External Actors ───────────────────────────────────────────────
+# ─── Operator (the person) ─────────────────────────────────────────
 operator: "Operator" {
   shape: person
   style: {
@@ -29,224 +26,173 @@ operator: "Operator" {
     stroke: "#a78bfa"
     stroke-width: 2
     font-color: "#e0e7ff"
-    font-size: 16
+    font-size: 18
     bold: true
-    border-radius: 8
   }
 }
 
-# ─── Argus AI Application ──────────────────────────────────────────
-argus: "Argus AI" {
+# ─── Argus AI Platform ─────────────────────────────────────────────
+argus: "Argus AI Platform" {
   style: {
     fill: "#0f172a"
     stroke: "#6366f1"
     stroke-width: 3
     font-color: "#e0e7ff"
-    font-size: 22
+    font-size: 24
     bold: true
-    border-radius: 16
-    stroke-dash: 0
+    border-radius: 18
   }
 
-  ui: "Web UI Layer" {
+  # Layer 1: What the operator sees and interacts with
+  ui: "Web Dashboard\n(single pane of glass for all workflows)" {
     style: {
-      fill: "#1e1b3a"
+      fill: "#1e3a8a"
       stroke: "#60a5fa"
+      stroke-width: 2
       font-color: "#dbeafe"
+      font-size: 16
+      bold: true
       border-radius: 10
     }
+  }
 
-    dashboard: "Dashboard\n(EJS + vanilla JS)\n— recent-runs strip\n— observed-value pills\n— stale-run warning" {
-      shape: rectangle
-      style.fill: "#1e3a8a"
-      style.stroke: "#60a5fa"
-      style.font-color: "#dbeafe"
-      style.border-radius: 8
+  # Layer 2: The brain
+  engine: "Monitoring Engine" {
+    style: {
+      fill: "#3a1f0d"
+      stroke: "#fb923c"
+      stroke-width: 2
+      font-color: "#fed7aa"
+      font-size: 17
+      bold: true
+      border-radius: 12
     }
-    builder: "Job Builder\n— manual rule form\n— plain-English rule writer" {
-      shape: rectangle
-      style.fill: "#1e3a8a"
-      style.stroke: "#60a5fa"
-      style.font-color: "#dbeafe"
+
+    scheduler: "Scheduler\n(runs on schedule — for example,\nevery hour during business days)" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
       style.border-radius: 8
+      style.font-size: 13
     }
-    settings: "Settings page\n— provider tests\n— email test send" {
-      shape: rectangle
-      style.fill: "#1e3a8a"
-      style.stroke: "#60a5fa"
-      style.font-color: "#dbeafe"
+
+    rule_engine: "Health Rule Engine\n(checks the live numbers against\nthe team's defined thresholds)" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
       style.border-radius: 8
+      style.font-size: 13
+    }
+
+    confirm: "Wait-and-Confirm Safety Net\n(re-checks failing rules to avoid\nalerting on transient blips)" {
+      style.fill: "#7c2d12"
+      style.stroke: "#fb923c"
+      style.font-color: "#fed7aa"
+      style.border-radius: 8
+      style.font-size: 13
     }
   }
 
-  api: "REST API (Express)" {
+  # Layer 3: How we connect to the systems being monitored
+  connectors: "Data Source Connectors\n(pluggable per workflow — each workflow picks one)" {
     style: {
       fill: "#2e1065"
       stroke: "#a78bfa"
+      stroke-width: 2
       font-color: "#e9d5ff"
-      border-radius: 10
+      font-size: 16
+      bold: true
+      border-radius: 12
     }
 
-    jobs: "/api/jobs\nCRUD + manual run trigger" {
+    option1: "Option 1 — Direct API\n(active for our RabbitMQ workflows)\n\nSpeed: ~50 ms per check\nCost: free\nReliability: deterministic\n[HTTP + Basic Auth]" {
       style.fill: "#4c1d95"
       style.stroke: "#a78bfa"
-      style.font-color: "#e9d5ff"
-      style.border-radius: 8
-    }
-    runs: "/api/runs\nhistory + run detail" {
-      style.fill: "#4c1d95"
-      style.stroke: "#a78bfa"
-      style.font-color: "#e9d5ff"
-      style.border-radius: 8
-    }
-    settings_api: "/api/settings\nprovider + email tests" {
-      style.fill: "#4c1d95"
-      style.stroke: "#a78bfa"
-      style.font-color: "#e9d5ff"
-      style.border-radius: 8
-    }
-    rules_parse: "/api/rules/parse\nplain-English → structured\n(Claude tool-use)" {
-      style.fill: "#7c3aed"
-      style.stroke: "#c4b5fd"
-      style.stroke-width: 2
       style.font-color: "#fff"
+      style.font-size: 13
       style.bold: true
       style.border-radius: 8
     }
 
-    middleware: "Security middleware\n— CSRF token validation\n— Rate limiting (60/min)\n— X-Frame-Options / nosniff" {
-      style.fill: "#312e81"
-      style.stroke: "#818cf8"
-      style.font-color: "#e0e7ff"
-      style.border-radius: 8
-      style.font-size: 11
-    }
-  }
-
-  workers: "Worker / Run Orchestration" {
-    style: {
-      fill: "#3a1f0d"
-      stroke: "#fb923c"
-      font-color: "#fed7aa"
-      border-radius: 10
-    }
-
-    scheduler: "Scheduler\n(node-cron)\n— overlap protection\n— TZ-aware" {
-      style.fill: "#7c2d12"
-      style.stroke: "#fb923c"
-      style.font-color: "#fed7aa"
-      style.border-radius: 8
-    }
-
-    runner: "Run Orchestrator\n— one full run\n— wait-and-confirm\n   recheck loop" {
-      style.fill: "#7c2d12"
-      style.stroke: "#fb923c"
-      style.font-color: "#fed7aa"
-      style.border-radius: 8
-    }
-
-    sources: "Source Adapters\n(pluggable per workflow)" {
-      style.fill: "#451a03"
-      style.stroke: "#fdba74"
-      style.font-color: "#fed7aa"
-      style.border-radius: 8
-
-      api_src: "RabbitMQ API\nadapter\n— HTTP fetch\n— 15s timeout\n— Basic Auth" {
-        style.fill: "#9a3412"
-        style.stroke: "#fb923c"
-        style.font-color: "#fed7aa"
-        style.border-radius: 6
-      }
-      vision_src: "Vision adapter\n— Playwright (Edge/Chromium)\n— Claude or GPT extraction\n— automatic fallback" {
-        style.fill: "#9a3412"
-        style.stroke: "#fb923c"
-        style.font-color: "#fed7aa"
-        style.border-radius: 6
-      }
-    }
-
-    rule_engine: "Rule Engine\n— threshold comparisons\n— observed value emission\n   (min, max, count)\n— wait-and-confirm logic" {
-      style.fill: "#7c2d12"
-      style.stroke: "#fb923c"
-      style.font-color: "#fed7aa"
-      style.border-radius: 8
-    }
-
-    notifier: "Notifier Dispatcher\n— Notifier interface\n— pluggable sinks" {
-      style.fill: "#7c2d12"
-      style.stroke: "#fb923c"
-      style.font-color: "#fed7aa"
+    option2: "Option 2 — Universal Adapter (AI Vision)\n(strategic fallback — can monitor anything\nwith a web UI, even systems without an API)\n\nSpeed: ~10–30 seconds per check\nCost: small fraction of a cent per check\nReliability: AI-augmented, screenshot-based\n[Playwright + Claude or GPT vision]" {
+      style.fill: "#4c1d95"
+      style.stroke: "#a78bfa"
+      style.font-color: "#fff"
+      style.font-size: 13
+      style.bold: true
       style.border-radius: 8
     }
   }
 
-  data: "Data Layer" {
+  # Layer 4: Storage
+  data: "Audit & Storage" {
     style: {
       fill: "#0c2e1f"
       stroke: "#34d399"
+      stroke-width: 2
       font-color: "#d1fae5"
-      border-radius: 10
+      font-size: 16
+      bold: true
+      border-radius: 12
     }
 
-    sqlite: "SQLite (WAL mode)\nbetter-sqlite3\n— jobs table\n— runs table" {
+    sqlite: "Local Database\n(every run recorded forever\nfor full audit trail)\n[SQLite + WAL mode]" {
       shape: cylinder
       style.fill: "#064e3b"
       style.stroke: "#34d399"
       style.font-color: "#d1fae5"
+      style.font-size: 13
     }
+  }
 
-    crypto: "AES-256-GCM\n— credential encryption\n— scrypt KDF" {
-      shape: rectangle
-      style.fill: "#064e3b"
-      style.stroke: "#34d399"
-      style.font-color: "#d1fae5"
-      style.border-radius: 6
-    }
-
-    branding: "branding.ts\nsingle source of truth\nfor brand identity" {
-      shape: rectangle
-      style.fill: "#064e3b"
-      style.stroke: "#34d399"
-      style.font-color: "#d1fae5"
-      style.border-radius: 6
+  # Layer 5: Alerts
+  alerts: "Alert System\n(notifies operators when something is wrong\nor when the platform itself hasn't run recently)" {
+    style: {
+      fill: "#3f2e1f"
+      stroke: "#fbbf24"
+      stroke-width: 2
+      font-color: "#fde68a"
+      font-size: 15
+      bold: true
+      border-radius: 10
     }
   }
 }
 
-# ─── External Services ─────────────────────────────────────────────
-rmq: "RabbitMQ\nManagement API\n(host:15672/api)" {
+# ─── External Systems ──────────────────────────────────────────────
+rmq: "RabbitMQ\nMessage Queue Cluster\n(the system being monitored)" {
   shape: cloud
   style: {
     fill: "#3f1d1d"
     stroke: "#f87171"
+    stroke-width: 2
     font-color: "#fecaca"
+    font-size: 14
+    bold: true
   }
 }
 
-claude_api: "Anthropic Claude\n— vision (Opus)\n— rule parsing (Haiku)" {
+claude_api: "Anthropic Claude\nAI service\n(used in two optional places —\nsee labels on connecting lines)" {
   shape: cloud
   style: {
     fill: "#1f1f3f"
     stroke: "#a78bfa"
+    stroke-width: 2
     font-color: "#e9d5ff"
+    font-size: 14
+    bold: true
   }
 }
 
-openai_api: "OpenAI GPT\n(vision fallback)" {
-  shape: cloud
-  style: {
-    fill: "#0f3f29"
-    stroke: "#34d399"
-    font-color: "#d1fae5"
-  }
-}
-
-resend_api: "Resend\nTransactional Email API" {
+email_service: "Email Delivery\n[Resend]" {
   shape: cloud
   style: {
     fill: "#3f2e1f"
     stroke: "#fbbf24"
+    stroke-width: 2
     font-color: "#fde68a"
+    font-size: 14
+    bold: true
   }
 }
 
@@ -255,63 +201,100 @@ inbox: "Operator Inbox" {
   style: {
     fill: "#1e1e26"
     stroke: "#fbbf24"
+    stroke-width: 2
     font-color: "#fde68a"
-    border-radius: 6
+    font-size: 14
+    bold: true
+    border-radius: 8
   }
 }
 
-# ─── Connections (with rich labels) ────────────────────────────────
+# ─── Connections ───────────────────────────────────────────────────
 
-operator -> argus.ui.dashboard: "HTTP\n(auto-refresh 30s)" { style.stroke: "#a78bfa" }
-operator -> argus.ui.builder: "writes rules" { style.stroke: "#a78bfa" }
+# Operator interacts with the dashboard
+operator -> argus.ui: "Reviews health, writes rules,\nresponds to alerts" {
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-size: 12
+}
 
-argus.ui.dashboard -> argus.api.middleware: "fetch" { style.stroke: "#60a5fa" }
-argus.ui.builder -> argus.api.middleware: "POST" { style.stroke: "#60a5fa" }
-argus.ui.settings -> argus.api.middleware: "POST" { style.stroke: "#60a5fa" }
+# Dashboard reads/writes to storage via the engine
+argus.ui -> argus.engine: "Configures workflows,\ntriggers manual runs" {
+  style.stroke: "#60a5fa"
+  style.font-size: 12
+}
+argus.ui -> argus.data.sqlite: "Reads history\nto display dashboard" {
+  style.stroke: "#60a5fa"
+  style.stroke-dash: 4
+  style.font-size: 12
+}
 
-argus.api.middleware -> argus.api.jobs: "" { style.stroke: "#818cf8" }
-argus.api.middleware -> argus.api.runs: "" { style.stroke: "#818cf8" }
-argus.api.middleware -> argus.api.settings_api: "" { style.stroke: "#818cf8" }
-argus.api.middleware -> argus.api.rules_parse: "" { style.stroke: "#c4b5fd"; style.stroke-width: 2 }
-
-argus.api.rules_parse -> claude_api: "plain English\n→ tool-use call\n→ structured rules" {
+# AI Rule Writer — only when operator clicks "Convert to rules"
+argus.ui -> claude_api: "OPTIONAL: Converts plain English to rules\n(only when operator clicks Convert button —\nnot during scheduled monitoring)" {
   style.stroke: "#c4b5fd"
   style.stroke-width: 2
   style.font-color: "#c4b5fd"
+  style.font-size: 12
+  style.bold: true
 }
 
-argus.api.jobs -> argus.data.sqlite: "read / write" { style.stroke: "#a78bfa" }
-argus.api.runs -> argus.data.sqlite: "read" { style.stroke: "#a78bfa" }
-argus.api.jobs -> argus.workers.scheduler: "schedule / reload" { style.stroke: "#fb923c" }
+# Monitoring engine runs the checks
+argus.engine.scheduler -> argus.engine.rule_engine: "Fires on cron" {
+  style.stroke: "#fb923c"
+  style.font-size: 12
+}
 
-argus.workers.scheduler -> argus.workers.runner: "fires on cron" { style.stroke: "#fb923c"; style.bold: true }
+argus.engine.rule_engine -> argus.connectors: "Asks for live\nqueue numbers" {
+  style.stroke: "#fb923c"
+  style.font-size: 12
+}
 
-argus.workers.runner -> argus.workers.sources.api_src: "source_type =\nrabbitmq_api" { style.stroke: "#fb923c" }
-argus.workers.runner -> argus.workers.sources.vision_src: "source_type =\nbrowser" { style.stroke: "#fb923c" }
+# The two data-source options
+argus.connectors.option1 -> rmq: "GET /api/queues\n(direct, fast, free)" {
+  style.stroke: "#f87171"
+  style.stroke-width: 2
+  style.font-size: 12
+}
 
-argus.workers.sources.api_src -> rmq: "GET /api/queues\nBasic Auth" { style.stroke: "#f87171" }
-argus.workers.sources.vision_src -> rmq: "navigate +\nscreenshot" { style.stroke: "#f87171" }
-argus.workers.sources.vision_src -> claude_api: "screenshot →\nJSON extract" { style.stroke: "#a78bfa" }
-argus.workers.sources.vision_src -> openai_api: "fallback" {
-  style.stroke: "#34d399"
+argus.connectors.option2 -> rmq: "Logs in via browser,\ntakes a screenshot" {
+  style.stroke: "#f87171"
   style.stroke-dash: 4
+  style.font-size: 12
 }
 
-argus.workers.sources.api_src -> argus.workers.rule_engine: "Extracted JSON" { style.stroke: "#fb923c" }
-argus.workers.sources.vision_src -> argus.workers.rule_engine: "Extracted JSON" { style.stroke: "#fb923c" }
-argus.workers.rule_engine -> argus.workers.runner: "RuleResult[]\nwith observed values" { style.stroke: "#fb923c" }
+argus.connectors.option2 -> claude_api: "AI reads the screenshot\nto extract queue data" {
+  style.stroke: "#a78bfa"
+  style.stroke-dash: 4
+  style.font-size: 12
+}
 
-argus.workers.runner -> argus.data.sqlite: "persist verdict\n(status, summary,\nrule results)" { style.stroke: "#34d399" }
-argus.workers.runner -> argus.workers.notifier: "alert /\nsystem_error" { style.stroke: "#fb923c"; style.bold: true }
+# Confirm step on failure
+argus.engine.rule_engine -> argus.engine.confirm: "If a rule fails,\nwait then re-check" {
+  style.stroke: "#fb923c"
+  style.font-size: 12
+}
 
-argus.workers.notifier -> resend_api: "HTML email\n(HTTPS POST)" { style.stroke: "#fbbf24" }
-resend_api -> inbox: "deliver" { style.stroke: "#fbbf24" }
-
-argus.data.crypto -> argus.data.sqlite: "encrypts\ncredentials" {
+# Persist verdict
+argus.engine.rule_engine -> argus.data.sqlite: "Records verdict +\nobserved numbers" {
   style.stroke: "#34d399"
-  style.stroke-dash: 3
+  style.stroke-width: 2
+  style.font-size: 12
 }
 
-argus.data.branding -> argus.ui.dashboard: "brand" { style.stroke: "#34d399"; style.stroke-dash: 3 }
-argus.data.branding -> argus.ui.builder: "brand" { style.stroke: "#34d399"; style.stroke-dash: 3 }
-argus.data.branding -> argus.workers.notifier: "brand\n(email subject,\nfooter)" { style.stroke: "#34d399"; style.stroke-dash: 3 }
+# Alerts on failure
+argus.engine.confirm -> argus.alerts: "Trigger alert\nif still failing" {
+  style.stroke: "#fbbf24"
+  style.stroke-width: 2
+  style.font-size: 12
+  style.bold: true
+}
+
+argus.alerts -> email_service: "Send HTML email" {
+  style.stroke: "#fbbf24"
+  style.font-size: 12
+}
+
+email_service -> inbox: "Delivers" {
+  style.stroke: "#fbbf24"
+  style.font-size: 12
+}
