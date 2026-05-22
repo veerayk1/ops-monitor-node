@@ -88,8 +88,6 @@ For RabbitMQ specifically, **the scheduled monitoring path uses zero AI calls** 
 
 ## System architecture
 
-### The diagram in one paragraph
-
 An **operator** opens the web dashboard, defines what "healthy" means for each queue (the rules), and waits. The **Monitoring Engine** runs on a schedule, asks the queue cluster for live numbers through one of two **Data Source Connectors**, evaluates the numbers against the rules, records the result in the **local database**, and triggers an **email alert** if anything fails. The same dashboard shows live status, history, and observed numbers — no need to log into RabbitMQ itself.
 
 <div align="center">

@@ -44,13 +44,13 @@ argus: "Argus AI Platform" {
   }
 
   # Layer 1: What the operator sees and interacts with
-  ui: "Web Dashboard\n(single pane of glass for all workflows)" {
+  ui: "Web Dashboard\n(single pane of glass for all workflows)\n— recent-runs strip, observed-value pills,\nstale-run warning, run history\n[EJS + vanilla JS, auto-refresh 30s,\nCSRF-protected POST endpoints]" {
     style: {
       fill: "#1e3a8a"
       stroke: "#60a5fa"
       stroke-width: 2
       font-color: "#dbeafe"
-      font-size: 16
+      font-size: 14
       bold: true
       border-radius: 10
     }
@@ -68,28 +68,28 @@ argus: "Argus AI Platform" {
       border-radius: 12
     }
 
-    scheduler: "Scheduler\n(runs on schedule — for example,\nevery hour during business days)" {
+    scheduler: "Scheduler\n(runs on schedule — for example,\nevery hour during business days)\n[node-cron, overlap protection,\nIANA timezone-aware]" {
       style.fill: "#7c2d12"
       style.stroke: "#fb923c"
       style.font-color: "#fed7aa"
       style.border-radius: 8
-      style.font-size: 13
+      style.font-size: 12
     }
 
-    rule_engine: "Health Rule Engine\n(checks the live numbers against\nthe team's defined thresholds)" {
+    rule_engine: "Health Rule Engine\n(checks the live numbers against\nthe team's defined thresholds)\n[Zod schema validation,\nemits observed min/max/count]" {
       style.fill: "#7c2d12"
       style.stroke: "#fb923c"
       style.font-color: "#fed7aa"
       style.border-radius: 8
-      style.font-size: 13
+      style.font-size: 12
     }
 
-    confirm: "Wait-and-Confirm Safety Net\n(re-checks failing rules to avoid\nalerting on transient blips)" {
+    confirm: "Wait-and-Confirm Safety Net\n(re-checks failing rules to avoid\nalerting on transient blips)\n[configurable wait minutes per rule,\nfull re-run on recheck]" {
       style.fill: "#7c2d12"
       style.stroke: "#fb923c"
       style.font-color: "#fed7aa"
       style.border-radius: 8
-      style.font-size: 13
+      style.font-size: 12
     }
   }
 
@@ -105,20 +105,20 @@ argus: "Argus AI Platform" {
       border-radius: 12
     }
 
-    option1: "Option 1 — Direct API\n(active for our RabbitMQ workflows)\n\nSpeed: ~50 ms per check\nCost: free\nReliability: deterministic\n[HTTP + Basic Auth]" {
+    option1: "Option 1 — Direct API\n(active for our RabbitMQ workflows)\n\nSpeed: ~50 ms per check\nCost: free (zero AI calls)\nReliability: deterministic, no UI parsing\n[HTTP + HTTP Basic Auth,\n15-second request timeout,\nNode 20 native fetch]" {
       style.fill: "#4c1d95"
       style.stroke: "#a78bfa"
       style.font-color: "#fff"
-      style.font-size: 13
+      style.font-size: 12
       style.bold: true
       style.border-radius: 8
     }
 
-    option2: "Option 2 — Universal Adapter (AI Vision)\n(strategic fallback — can monitor anything\nwith a web UI, even systems without an API)\n\nSpeed: ~10–30 seconds per check\nCost: small fraction of a cent per check\nReliability: AI-augmented, screenshot-based\n[Playwright + Claude or GPT vision]" {
+    option2: "Option 2 — Universal Adapter (AI Vision)\n(strategic fallback — can monitor anything\nwith a web UI, even systems without an API)\n\nSpeed: ~10–30 seconds per check\nCost: small fraction of a cent per check\nReliability: AI-augmented, screenshot-based\n[Playwright (Edge/Chromium),\nAnthropic Claude Opus primary,\nOpenAI GPT-4o automatic fallback]" {
       style.fill: "#4c1d95"
       style.stroke: "#a78bfa"
       style.font-color: "#fff"
-      style.font-size: 13
+      style.font-size: 12
       style.bold: true
       style.border-radius: 8
     }
@@ -136,23 +136,23 @@ argus: "Argus AI Platform" {
       border-radius: 12
     }
 
-    sqlite: "Local Database\n(every run recorded forever\nfor full audit trail)\n[SQLite + WAL mode]" {
+    sqlite: "Local Database\n(every run recorded forever\nfor full audit trail)\n[SQLite + WAL mode, better-sqlite3,\nAES-256-GCM credential encryption,\nscrypt key derivation,\nidempotent schema migrations]" {
       shape: cylinder
       style.fill: "#064e3b"
       style.stroke: "#34d399"
       style.font-color: "#d1fae5"
-      style.font-size: 13
+      style.font-size: 12
     }
   }
 
   # Layer 5: Alerts
-  alerts: "Alert System\n(notifies operators when something is wrong\nor when the platform itself hasn't run recently)" {
+  alerts: "Alert System\n(notifies operators when something is wrong\nor when the platform itself hasn't run recently)\n[Notifier interface, pluggable sinks,\nDashboard + Email today;\nSlack/Teams roadmapped]" {
     style: {
       fill: "#3f2e1f"
       stroke: "#fbbf24"
       stroke-width: 2
       font-color: "#fde68a"
-      font-size: 15
+      font-size: 13
       bold: true
       border-radius: 10
     }
