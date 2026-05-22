@@ -116,47 +116,47 @@ flowchart TB
     classDef storage fill:#064e3b,stroke:#10b981,color:#d1fae5
     classDef notifier fill:#7c2d12,stroke:#f97316,color:#fed7aa
 
-    Browser([Operator's Browser]):::external
+    Browser(["Operator Browser"]):::external
 
-    subgraph ArgusServer[Argus AI - Node.js + Express]
+    subgraph ArgusServer["Argus AI — Node.js + Express"]
         direction TB
-        Pages[Web UI<br/>EJS + vanilla JS]
-        REST[REST API<br/>/api/jobs · /api/runs · /api/settings · /api/rules/parse]
-        Sched[Scheduler<br/>node-cron]
-        Runner[Run Orchestrator<br/>wait-and-confirm logic]
-        RulesParser[Rules Parser<br/>plain English -&gt; structured<br/>Anthropic tool-use]:::adapter
+        Pages["Web UI<br/>EJS + vanilla JS"]
+        REST["REST API<br/>/api/jobs · /api/runs · /api/settings · /api/rules/parse"]
+        Sched["Scheduler<br/>node-cron"]
+        Runner["Run Orchestrator<br/>wait-and-confirm logic"]
+        RulesParser["Rules Parser<br/>plain English → structured<br/>Anthropic tool-use"]:::adapter
 
-        subgraph Sources[Source Adapters - pluggable per workflow]
+        subgraph Sources["Source Adapters — pluggable per workflow"]
             direction LR
-            APISrc[RabbitMQ API Adapter<br/>HTTP + Basic Auth]:::adapter
-            VisionSrc[Vision Adapter<br/>Playwright + AI]:::adapter
+            APISrc["RabbitMQ API Adapter<br/>HTTP + Basic Auth"]:::adapter
+            VisionSrc["Vision Adapter<br/>Playwright + AI"]:::adapter
         end
 
-        Rules[Rule Engine<br/>threshold checks +<br/>observed-value emission]
-        SQLite[(SQLite + WAL<br/>better-sqlite3)]:::storage
-        Notifier[Notifier Dispatcher]
-        DashSink[Dashboard Sink]:::notifier
-        EmailSink[Email Sink<br/>Resend SDK]:::notifier
+        Rules["Rule Engine<br/>threshold checks +<br/>observed-value emission"]
+        SQLite[("SQLite + WAL<br/>better-sqlite3")]:::storage
+        Notifier["Notifier Dispatcher"]
+        DashSink["Dashboard Sink"]:::notifier
+        EmailSink["Email Sink<br/>Resend SDK"]:::notifier
     end
 
-    RMQ[RabbitMQ Management API<br/>http(s)://host:15672/api/queues]:::external
-    Claude[Anthropic Claude API<br/>vision extraction]:::external
-    GPT[OpenAI GPT API<br/>vision extraction]:::external
-    Resend[Resend Transactional Email API]:::external
-    Inbox[Operator's Inbox]:::external
+    RMQ["RabbitMQ Management API<br/>http://host:15672/api/queues"]:::external
+    Claude["Anthropic Claude API<br/>vision + rule parsing"]:::external
+    GPT["OpenAI GPT API<br/>vision extraction"]:::external
+    Resend["Resend Transactional Email API"]:::external
+    Inbox["Operator Inbox"]:::external
 
     Browser -->|HTML| Pages
     Browser -->|JSON| REST
     REST <-->|read/write| SQLite
     Pages -->|fetch| REST
-    REST -->|"POST /api/rules/parse<br/>(plain English)"| RulesParser
-    RulesParser -->|"Anthropic tool-use<br/>structured rules"| Claude
+    REST -->|"POST /api/rules/parse (plain English)"| RulesParser
+    RulesParser -->|"Anthropic tool-use, structured rules"| Claude
 
     Sched -->|fires per cron| Runner
     Runner -->|"source_type = rabbitmq_api"| APISrc
     Runner -->|"source_type = browser"| VisionSrc
     APISrc -->|GET /api/queues| RMQ
-    VisionSrc -->|navigate + screenshot| RMQ
+    VisionSrc -->|"navigate + screenshot"| RMQ
     VisionSrc -->|extract JSON| Claude
     VisionSrc -->|fallback extract| GPT
 
@@ -164,7 +164,7 @@ flowchart TB
     VisionSrc -->|Extracted JSON| Rules
     Rules -->|RuleResult array| Runner
     Runner -->|persist verdict| SQLite
-    Runner -->|severity alert / system_error| Notifier
+    Runner -->|"severity alert or system_error"| Notifier
     Notifier --> DashSink
     Notifier --> EmailSink
     EmailSink -->|HTTPS POST| Resend

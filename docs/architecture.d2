@@ -3,6 +3,10 @@
 # D2 source for the high-resolution architecture diagram embedded in README.md.
 # Render with:
 #   d2 -t 200 --layout=elk docs/architecture.d2 docs/architecture.svg
+#   # then ensure the outer <svg> has explicit width/height (D2 omits them by
+#   # default, which makes <img>-embed render at the browser's 300x150 fallback):
+#   sed -i.bak 's|preserveAspectRatio="xMinYMin meet" viewBox="0 0 \([0-9]*\) \([0-9]*\)"|width="\1" height="\2" preserveAspectRatio="xMinYMin meet" viewBox="0 0 \1 \2"|' docs/architecture.svg
+#   rm docs/architecture.svg.bak
 #
 # Theme 200 = "Dark Mauve" (matches the Argus UI palette).
 # Layout ELK gives the cleanest orthogonal routing for this style of diagram.
